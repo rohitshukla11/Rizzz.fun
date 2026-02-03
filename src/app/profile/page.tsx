@@ -134,7 +134,7 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <span className="text-sm font-mono text-white">
-                  {formatTokenAmount(session.availableBalance)} REEL
+                  {formatTokenAmount(session.availableBalance)} RIZZZ
                 </span>
               </div>
             </div>

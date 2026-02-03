@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi';
 import { Wallet, ChevronDown, LogOut, Copy, ExternalLink, Check } from 'lucide-react';
@@ -10,11 +10,17 @@ import { cn, truncateAddress, formatTokenAmount } from '@/lib/utils';
 export function ConnectButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { data: balance } = useBalance({ address });
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCopy = () => {
     if (address) {
@@ -23,6 +29,22 @@ export function ConnectButton() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // Show loading state during SSR to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="relative">
+        <Button
+          variant="glass"
+          size="sm"
+          disabled
+        >
+          <Wallet className="w-4 h-4" />
+          <span className="hidden sm:inline">Connect</span>
+        </Button>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

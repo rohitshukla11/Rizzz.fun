@@ -3,16 +3,17 @@ import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ReelPredict | Predict. Win. Repeat.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  title: 'Rizzz.fun | Predict. Win. Repeat.',
   description: 'Predict which reels will win challenges and earn rewards. Powered by Yellow Network for instant, gasless predictions.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'ReelPredict',
+    title: 'Rizzz.fun',
   },
   openGraph: {
-    title: 'ReelPredict',
+    title: 'Rizzz.fun',
     description: 'Mobile-first prediction market for viral video content',
     type: 'website',
   },

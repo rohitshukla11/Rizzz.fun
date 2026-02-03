@@ -107,7 +107,7 @@ export default function HomePage() {
               <Sparkles className="w-6 h-6 text-reel-primary" />
             </motion.div>
             <h1 className="font-display text-xl font-bold text-gradient">
-              ReelPredict
+              Rizzz.fun
             </h1>
           </div>
           <ConnectButton />

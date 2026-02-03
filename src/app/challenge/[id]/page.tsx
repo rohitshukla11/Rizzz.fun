@@ -200,7 +200,7 @@ export default function ChallengePage() {
                         <span className="text-sm text-reel-success">Session Active</span>
                       </div>
                       <span className="text-sm font-mono text-white">
-                        {formatTokenAmount(session.availableBalance)} REEL
+                        {formatTokenAmount(session.availableBalance)} RIZZZ
                       </span>
                     </div>
                   ) : (

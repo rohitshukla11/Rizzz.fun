@@ -62,7 +62,7 @@ export function PredictionPanel({ reel, challengeId, onClose }: PredictionPanelP
       addToast({
         type: 'success',
         title: 'Prediction placed!',
-        message: `${formatTokenAmount(parsedAmount)} REEL on ${reel.title}`,
+        message: `${formatTokenAmount(parsedAmount)} RIZZZ on ${reel.title}`,
       });
 
       setTimeout(() => {
@@ -197,14 +197,14 @@ export function PredictionPanel({ reel, challengeId, onClose }: PredictionPanelP
                     className="w-full h-14 px-4 pr-20 rounded-xl bg-reel-card border border-reel-border focus:border-reel-primary focus:ring-1 focus:ring-reel-primary/50 outline-none text-2xl font-mono text-white placeholder:text-reel-muted/50 transition-all"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-reel-muted font-medium">REEL</span>
+                    <span className="text-reel-muted font-medium">RIZZZ</span>
                   </div>
                 </div>
 
                 {/* Balance info */}
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-reel-muted">
-                    Available: {formatTokenAmount(availableBalance)} REEL
+                    Available: {formatTokenAmount(availableBalance)} RIZZZ
                   </span>
                   {parsedAmount > availableBalance && (
                     <span className="text-xs text-red-500 flex items-center gap-1">

@@ -34,7 +34,7 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// ReelPredict deposit ABI
+// Rizzz.fun deposit ABI
 const DEPOSIT_ABI = [
   {
     name: 'deposit',
@@ -236,7 +236,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                 <div className="mt-6 flex items-center gap-2 text-reel-success">
                   <Zap className="w-4 h-4" />
                   <span className="text-sm font-medium">
-                    {formatTokenAmount(parsedAmount)} REEL available
+                    {formatTokenAmount(parsedAmount)} RIZZZ available
                   </span>
                 </div>
               </motion.div>
@@ -272,7 +272,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                           : 'bg-reel-card text-reel-muted hover:bg-reel-card/80 hover:text-white'
                       )}
                     >
-                      {value} REEL
+                      {value} RIZZZ
                     </button>
                   ))}
                 </div>
