@@ -32,8 +32,10 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.4 }}
     >
-      <Link href={`/challenge/${challenge.id}`}>
-        <div className="group relative overflow-hidden rounded-2xl bg-reel-card border border-reel-border hover:border-reel-primary/50 transition-all duration-300">
+      <Link 
+        href={`/challenge/${challenge.id}`}
+        className="block group relative overflow-hidden rounded-2xl bg-reel-card border border-reel-border hover:border-reel-primary/50 transition-all duration-300"
+      >
           {/* Background gradient overlay */}
           <div 
             className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity"
@@ -127,7 +129,6 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
           
           {/* Bottom gradient line */}
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-reel-primary via-reel-accent to-reel-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-        </div>
       </Link>
     </motion.div>
   );

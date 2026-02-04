@@ -5,7 +5,7 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 import { sepolia, arbitrum, base } from 'wagmi/chains';
 import { injected, walletConnect } from 'wagmi/connectors';
 import { useState, type ReactNode } from 'react';
-import { Toaster } from '@/components/ui/toast';
+import { ToastProvider, Toaster } from '@/components/ui/toast';
 
 // WalletConnect project ID
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_ID || 'demo';
@@ -36,8 +36,10 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster />
+        <ToastProvider>
+          {children}
+          <Toaster />
+        </ToastProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
