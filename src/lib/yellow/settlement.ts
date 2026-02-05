@@ -1,10 +1,11 @@
 /**
- * Settlement Service for Yellow Network Integration
+ * Settlement Service for Yellow Network Nitrolite Integration
  * Handles challenge settlement, winner calculation, and payout distribution
+ * Based on Yellow Network App Sessions settlement flow
  */
 
 import { ethers } from 'ethers';
-import { getYellowClient, SettlementProof, Prediction } from './client';
+import { getNitroliteClient, SessionState, PredictionState } from './nitrolite-client';
 
 // Contract ABI for settlement
 const REEL_PREDICT_ABI = [
@@ -63,6 +64,8 @@ export interface SettlementResult {
   payouts: { address: string; amount: bigint }[];
   transactionHash: string;
   timestamp: number;
+  stateHash: string;
+  signatures: string[];
 }
 
 export class SettlementService {
@@ -82,10 +85,11 @@ export class SettlementService {
 
   /**
    * Calculate the winner reel based on predictions and votes
+   * Uses Yellow Network App Session state
    */
   async calculateWinner(
     challengeId: string,
-    predictions: Prediction[],
+    predictions: PredictionState[],
     votes: Map<string, number>
   ): Promise<ReelStats[]> {
     // Aggregate predictions by reel
@@ -93,7 +97,6 @@ export class SettlementService {
 
     for (const prediction of predictions) {
       if (prediction.challengeId !== challengeId) continue;
-      if (prediction.status === 'cancelled') continue;
 
       const existing = reelStats.get(prediction.reelId) || {
         reelId: prediction.reelId,
@@ -121,18 +124,20 @@ export class SettlementService {
 
   /**
    * Calculate payouts for winning predictions
+   * Based on Yellow Network App Session final state
    */
   calculatePayouts(
-    predictions: Prediction[],
+    predictions: PredictionState[],
     winnerReelId: string,
     totalPool: bigint,
+    sessionParticipants: string[], // Participants from App Session
     platformFeePercent: number = 250 // 2.5% in basis points
   ): Map<string, bigint> {
     const payouts = new Map<string, bigint>();
 
     // Get all predictions on the winning reel
     const winningPredictions = predictions.filter(
-      (p) => p.reelId === winnerReelId && p.status !== 'cancelled'
+      (p) => p.reelId === winnerReelId
     );
 
     if (winningPredictions.length === 0) {
@@ -149,36 +154,74 @@ export class SettlementService {
     const platformFee = (totalPool * BigInt(platformFeePercent)) / 10000n;
     const distributablePool = totalPool - platformFee;
 
+    // Map predictions to participants (in production, would use proper mapping)
+    const participantPredictions = new Map<string, bigint>();
+    for (let i = 0; i < winningPredictions.length && i < sessionParticipants.length; i++) {
+      const participant = sessionParticipants[i];
+      const existing = participantPredictions.get(participant) || 0n;
+      participantPredictions.set(participant, existing + winningPredictions[i].amount);
+    }
+
     // Distribute proportionally to winning predictors
-    for (const prediction of winningPredictions) {
-      // Use session ID as proxy for user address (in production, would map to actual address)
-      const userKey = prediction.sessionId;
-      
-      // Proportional share based on prediction amount
-      const share = (prediction.amount * distributablePool) / totalWinningPredictions;
-      
-      const existing = payouts.get(userKey) || 0n;
-      payouts.set(userKey, existing + share);
+    for (const [participant, totalAmount] of participantPredictions) {
+      const share = (totalAmount * distributablePool) / totalWinningPredictions;
+      payouts.set(participant, share);
     }
 
     return payouts;
   }
 
   /**
-   * Request settlement from Yellow Network and submit to smart contract
+   * Request settlement from Yellow Network App Session and submit to smart contract
+   * Based on Yellow Network settlement flow
    */
-  async settleChallenge(challengeId: string): Promise<SettlementResult> {
+  async settleChallenge(challengeId: string, winnerReelId: string): Promise<SettlementResult> {
     if (!this.signer) {
       throw new Error('Signer required for settlement');
     }
 
-    const client = getYellowClient();
+    const client = getNitroliteClient();
     
-    // Get settlement proof from Yellow Network
-    const proof = await client.requestSettlement(challengeId);
+    // Request settlement from Yellow Network App Session
+    // This aggregates all off-chain state
+    const settlement = await client.requestSettlement(challengeId);
+    
+    // Get final state from settlement
+    const finalState = settlement.finalState;
+    
+    // Calculate winner and payouts from final state
+    const predictions = Array.from(finalState.predictions.values());
+    const votes = Array.from(finalState.votes.values());
+    const voteCounts = new Map<string, number>();
+    
+    for (const vote of votes) {
+      const count = voteCounts.get(vote.reelId) || 0;
+      voteCounts.set(vote.reelId, count + 1);
+    }
+    
+    const reelStats = await this.calculateWinner(challengeId, predictions, voteCounts);
+    const winner = reelStats[0]?.reelId || winnerReelId;
+    
+    // Get session participants
+    const session = client.getSession();
+    const participants = session?.participants || [];
+    
+    // Calculate payouts
+    const payouts = this.calculatePayouts(
+      predictions,
+      winner,
+      finalState.balance,
+      participants
+    );
     
     // Prepare settlement data for smart contract
-    const settlementData = this.prepareSettlementData(proof);
+    const settlementData = this.prepareSettlementData(
+      settlement.stateHash,
+      settlement.signatures,
+      participants,
+      payouts,
+      winner
+    );
     
     // Submit to smart contract
     const contract = new ethers.Contract(
@@ -192,35 +235,44 @@ export class SettlementService {
 
     return {
       challengeId,
-      winnerReelId: proof.winnerReelId,
-      totalPool: Array.from(proof.payouts.values()).reduce((a, b) => a + b, 0n),
-      payouts: Array.from(proof.payouts.entries()).map(([address, amount]) => ({
+      winnerReelId: winner,
+      totalPool: finalState.balance,
+      payouts: Array.from(payouts.entries()).map(([address, amount]) => ({
         address,
         amount,
       })),
       transactionHash: receipt.hash,
       timestamp: Date.now(),
+      stateHash: settlement.stateHash,
+      signatures: settlement.signatures,
     };
   }
 
   /**
    * Prepare settlement data for smart contract submission
+   * Formats Yellow Network App Session settlement for on-chain submission
    */
-  private prepareSettlementData(proof: SettlementProof) {
-    const participants: string[] = [];
-    const payouts: bigint[] = [];
+  private prepareSettlementData(
+    stateHash: string,
+    signatures: string[],
+    participants: string[],
+    payouts: Map<string, bigint>,
+    winnerReelId: string
+  ) {
+    const participantList: string[] = [];
+    const payoutList: bigint[] = [];
 
-    for (const [address, amount] of proof.payouts) {
-      participants.push(address);
-      payouts.push(amount);
+    for (const participant of participants) {
+      participantList.push(participant);
+      payoutList.push(payouts.get(participant) || 0n);
     }
 
     return {
-      stateHash: proof.finalStateHash,
-      signatures: proof.signatures,
-      participants,
-      payouts,
-      winnerReelId: proof.winnerReelId,
+      stateHash,
+      signatures,
+      participants: participantList,
+      payouts: payoutList,
+      winnerReelId,
     };
   }
 

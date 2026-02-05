@@ -254,7 +254,7 @@ export default function CreatePage() {
               Your reel is now live in the challenge. Good luck!
             </p>
             <div className="flex gap-3">
-              <Link href={`/challenge/${selectedChallenge}`}>
+              <Link href={`/challenge/${selectedChallenge}`} className="inline-block">
                 <Button variant="default">
                   View Challenge
                 </Button>

@@ -141,7 +141,7 @@ export default function HomePage() {
                   Get Started
                 </Button>
               ) : (
-                <Link href="/challenge/challenge_001">
+                <Link href="/challenge/challenge_001" className="inline-block">
                   <Button variant="default" size="lg">
                     Start Predicting
                     <ArrowRight className="w-5 h-5" />

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Users, Coins, TrendingUp, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -26,6 +27,18 @@ const statusLabels = {
 };
 
 export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+  // Client-side only time calculation to prevent hydration mismatch
+  useEffect(() => {
+    const updateTime = () => {
+      setTimeRemaining(formatTimeRemaining(challenge.endTime));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [challenge.endTime]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -35,6 +48,7 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
       <Link 
         href={`/challenge/${challenge.id}`}
         className="block group relative overflow-hidden rounded-2xl bg-reel-card border border-reel-border hover:border-reel-primary/50 transition-all duration-300"
+        prefetch={false}
       >
           {/* Background gradient overlay */}
           <div 
@@ -78,7 +92,7 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
             <div className="absolute top-3 right-3 glass-strong rounded-lg px-2 py-1 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-reel-muted" />
               <span className="text-xs font-mono text-white">
-                {formatTimeRemaining(challenge.endTime)}
+                {timeRemaining || 'Loading...'}
               </span>
             </div>
           </div>
