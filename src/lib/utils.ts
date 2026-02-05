@@ -6,10 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format token amount for display
+ * Format token amount for display.
+ * Defaults to 6 decimals to match USDC-style tokens unless overridden.
  */
-export function formatTokenAmount(amount: bigint, decimals: number = 18): string {
-  const divisor = BigInt(10 ** decimals);
+export function formatTokenAmount(amount: bigint, decimals: number = 6): string {
+  const divisor = BigInt(Math.pow(10, decimals));
   const whole = amount / divisor;
   const fraction = amount % divisor;
   
@@ -22,15 +23,17 @@ export function formatTokenAmount(amount: bigint, decimals: number = 18): string
 }
 
 /**
- * Parse user input to token amount
+ * Parse user input to token amount.
+ * Defaults to 6 decimals to match USDC-style tokens unless overridden.
  */
-export function parseTokenAmount(input: string, decimals: number = 18): bigint {
+export function parseTokenAmount(input: string, decimals: number = 6): bigint {
   const [whole, fraction = ''] = input.split('.');
   const wholeNum = BigInt(whole || '0');
   const fractionPadded = fraction.padEnd(decimals, '0').slice(0, decimals);
-  const fractionNum = BigInt(fractionPadded);
-  
-  return wholeNum * BigInt(10 ** decimals) + fractionNum;
+  const fractionNum = BigInt(fractionPadded || '0');
+
+  const factor = BigInt(Math.pow(10, decimals));
+  return wholeNum * factor + fractionNum;
 }
 
 /**

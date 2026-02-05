@@ -24,7 +24,7 @@ const mockChallenge: Challenge = {
   coverImage: '',
   startTime: Date.now() - 86400000,
   endTime: Date.now() + 86400000 * 5,
-  totalPool: 125000n * 10n ** 18n,
+  totalPool: 125000n * 1_000_000n, // USDC-style mock values
   reelCount: 47,
   participantCount: 312,
   status: 'active',
@@ -40,7 +40,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Crazy moonwalk combo 🌙✨',
     votes: 2453,
-    predictionPool: 45000n * 10n ** 18n,
+    predictionPool: 45000n * 1_000_000n,
     createdAt: Date.now() - 86400000,
   },
   {
@@ -52,7 +52,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'When the beat drops 🔥',
     votes: 1897,
-    predictionPool: 32000n * 10n ** 18n,
+    predictionPool: 32000n * 1_000_000n,
     createdAt: Date.now() - 72000000,
   },
   {
@@ -64,7 +64,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Robot dance perfection 🤖',
     votes: 1654,
-    predictionPool: 28000n * 10n ** 18n,
+    predictionPool: 28000n * 1_000_000n,
     createdAt: Date.now() - 58000000,
   },
   {
@@ -76,7 +76,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Flexibility goals 💪',
     votes: 1432,
-    predictionPool: 20000n * 10n ** 18n,
+    predictionPool: 20000n * 1_000_000n,
     createdAt: Date.now() - 43000000,
   },
 ];
@@ -200,7 +200,7 @@ export default function ChallengePage() {
                         <span className="text-sm text-reel-success">Session Active</span>
                       </div>
                       <span className="text-sm font-mono text-white">
-                        {formatTokenAmount(session.availableBalance)} RIZZZ
+                        {formatTokenAmount(session.availableBalance, 6)} USDC
                       </span>
                     </div>
                   ) : (

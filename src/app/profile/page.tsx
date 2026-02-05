@@ -18,8 +18,8 @@ const mockStats = {
   totalPredictions: 47,
   totalWins: 12,
   winRate: 25.5,
-  totalEarnings: 4532n * 10n ** 18n,
-  totalDeposited: 3000n * 10n ** 18n,
+  totalEarnings: 4532n * 1_000_000n, // USDC-style mock values
+  totalDeposited: 3000n * 1_000_000n,
 };
 
 const mockHistory = [
@@ -134,7 +134,7 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <span className="text-sm font-mono text-white">
-                  {formatTokenAmount(session.availableBalance)} RIZZZ
+                  {formatTokenAmount(session.availableBalance, 6)} USDC
                 </span>
               </div>
             </div>

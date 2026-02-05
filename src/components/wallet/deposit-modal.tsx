@@ -11,9 +11,9 @@ import { useAppStore } from '@/store/app-store';
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
-// Contract addresses (would come from env in production)
-const REEL_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_REEL_TOKEN_ADDRESS as `0x${string}`;
-const REEL_PREDICT_ADDRESS = process.env.NEXT_PUBLIC_REEL_PREDICT_ADDRESS as `0x${string}`;
+// Contract addresses (USDC + prediction market), provided via env in production
+const USDC_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_USDC_TOKEN_ADDRESS as `0x${string}`;
+const PREDICTION_MARKET_ADDRESS = process.env.NEXT_PUBLIC_PREDICTION_MARKET_ADDRESS as `0x${string}`;
 
 // Simple ERC20 ABI for approval
 const ERC20_ABI = [
@@ -67,7 +67,8 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   const { setSessionBalance, setDepositModalOpen } = useAppStore();
   const { addToast } = useToast();
 
-  const parsedAmount = amount ? parseTokenAmount(amount) : 0n;
+  // USDC-style tokens use 6 decimals
+  const parsedAmount = amount ? parseTokenAmount(amount, 6) : 0n;
 
   // Approval transaction
   const { 
@@ -92,15 +93,15 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   });
 
   const handleApprove = useCallback(async () => {
-    if (!address || !REEL_TOKEN_ADDRESS || !REEL_PREDICT_ADDRESS) return;
+    if (!address || !USDC_TOKEN_ADDRESS || !PREDICTION_MARKET_ADDRESS) return;
     
     setStep('approve');
     try {
       writeApprove({
-        address: REEL_TOKEN_ADDRESS,
+        address: USDC_TOKEN_ADDRESS,
         abi: ERC20_ABI,
         functionName: 'approve',
-        args: [REEL_PREDICT_ADDRESS, parsedAmount],
+        args: [PREDICTION_MARKET_ADDRESS, parsedAmount],
       });
     } catch (error) {
       addToast({
@@ -113,14 +114,14 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   }, [address, parsedAmount, writeApprove, addToast]);
 
   const handleDeposit = useCallback(async () => {
-    if (!address || !REEL_PREDICT_ADDRESS) return;
+    if (!address || !PREDICTION_MARKET_ADDRESS) return;
     
     setStep('deposit');
     const channelId = `0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}` as `0x${string}`;
     
     try {
       writeDeposit({
-        address: REEL_PREDICT_ADDRESS,
+        address: PREDICTION_MARKET_ADDRESS,
         abi: DEPOSIT_ABI,
         functionName: 'deposit',
         args: [parsedAmount, challengeId, channelId],
@@ -236,7 +237,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                 <div className="mt-6 flex items-center gap-2 text-reel-success">
                   <Zap className="w-4 h-4" />
                   <span className="text-sm font-medium">
-                    {formatTokenAmount(parsedAmount)} RIZZZ available
+                    {formatTokenAmount(parsedAmount, 6)} USDC available
                   </span>
                 </div>
               </motion.div>
@@ -272,7 +273,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                           : 'bg-reel-card text-reel-muted hover:bg-reel-card/80 hover:text-white'
                       )}
                     >
-                      {value} RIZZZ
+                      {value} USDC
                     </button>
                   ))}
                 </div>
