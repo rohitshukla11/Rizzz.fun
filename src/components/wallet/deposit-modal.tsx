@@ -1,44 +1,41 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Wallet, ArrowRight, Shield, Zap, CheckCircle, Loader2 } from 'lucide-react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits } from 'viem';
+import { useAccount, useWaitForTransactionReceipt, useChainId, useSwitchChain } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { encodeFunctionData } from 'viem';
 import { Button } from '@/components/ui/button';
 import { useYellowSession } from '@/lib/yellow';
 import { useAppStore } from '@/store/app-store';
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
-// Contract addresses (USDC + prediction market), provided via env in production
+// Contract addresses
 const USDC_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_USDC_TOKEN_ADDRESS as `0x${string}`;
 const PREDICTION_MARKET_ADDRESS = process.env.NEXT_PUBLIC_PREDICTION_MARKET_ADDRESS as `0x${string}`;
 
-// Simple ERC20 ABI for approval
+// ERC20 ABI for approval
 const ERC20_ABI = [
   {
     name: 'approve',
     type: 'function',
+    stateMutability: 'nonpayable',
     inputs: [
       { name: 'spender', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
-    outputs: [{ type: 'bool' }],
-  },
-  {
-    name: 'balanceOf',
-    type: 'function',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ type: 'uint256' }],
+    outputs: [{ name: '', type: 'bool' }],
   },
 ] as const;
 
-// Rizzz.fun deposit ABI
+// Deposit ABI
 const DEPOSIT_ABI = [
   {
     name: 'deposit',
     type: 'function',
+    stateMutability: 'nonpayable',
     inputs: [
       { name: 'amount', type: 'uint256' },
       { name: 'challengeId', type: 'string' },
@@ -56,85 +53,223 @@ interface DepositModalProps {
 
 type Step = 'input' | 'approve' | 'deposit' | 'session' | 'success';
 
-const presetAmounts = [100, 250, 500, 1000];
+const presetAmounts = [1, 5, 10, 50];
+
+/**
+ * Send a transaction directly via window.ethereum (MetaMask provider).
+ * This completely bypasses viem/wagmi's HTTP transport and rate limiter.
+ * MetaMask handles gas estimation and RPC calls internally using its own configured RPC.
+ */
+async function sendViaMetaMask(params: {
+  from: string;
+  to: string;
+  data: string;
+  gas?: bigint;
+}): Promise<`0x${string}`> {
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) {
+    throw new Error('MetaMask not found. Please install MetaMask.');
+  }
+
+  const txParams: Record<string, string> = {
+    from: params.from,
+    to: params.to,
+    data: params.data,
+  };
+
+  if (params.gas) {
+    txParams.gas = `0x${params.gas.toString(16)}`;
+  }
+
+  const txHash = await ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [txParams],
+  });
+
+  return txHash as `0x${string}`;
+}
 
 export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps) {
-  const [amount, setAmount] = useState('100');
+  const [amount, setAmount] = useState('1');
   const [step, setStep] = useState<Step>('input');
+  const [approveHash, setApproveHash] = useState<`0x${string}` | undefined>();
+  const [depositHash, setDepositHash] = useState<`0x${string}` | undefined>();
+  const [isPending, setIsPending] = useState(false);
   
   const { address } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const { openSession } = useYellowSession();
   const { setSessionBalance, setDepositModalOpen } = useAppStore();
   const { addToast } = useToast();
+  const expectedChainId = sepolia.id;
 
-  // USDC-style tokens use 6 decimals
+  // USDC uses 6 decimals
   const parsedAmount = amount ? parseTokenAmount(amount, 6) : 0n;
 
-  // Approval transaction
-  const { 
-    writeContract: writeApprove, 
-    data: approveHash,
-    isPending: isApproving 
-  } = useWriteContract();
-
+  // Watch for approval tx confirmation
   const { isLoading: isWaitingApproval, isSuccess: approvalSuccess } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
 
-  // Deposit transaction
-  const { 
-    writeContract: writeDeposit, 
-    data: depositHash,
-    isPending: isDepositing 
-  } = useWriteContract();
-
+  // Watch for deposit tx confirmation
   const { isLoading: isWaitingDeposit, isSuccess: depositSuccess } = useWaitForTransactionReceipt({
     hash: depositHash,
   });
 
   const handleApprove = useCallback(async () => {
-    if (!address || !USDC_TOKEN_ADDRESS || !PREDICTION_MARKET_ADDRESS) return;
-    
+    if (!address) {
+      addToast({ type: 'error', title: 'Wallet not connected', message: 'Please connect your wallet first' });
+      return;
+    }
+    if (!USDC_TOKEN_ADDRESS || USDC_TOKEN_ADDRESS.length < 10) {
+      addToast({ type: 'error', title: 'Config error', message: 'USDC token address not set' });
+      return;
+    }
+    if (!PREDICTION_MARKET_ADDRESS || PREDICTION_MARKET_ADDRESS.length < 10) {
+      addToast({ type: 'error', title: 'Config error', message: 'Prediction market address not set' });
+      return;
+    }
+    if (parsedAmount === 0n) {
+      addToast({ type: 'error', title: 'Invalid amount', message: 'Enter a valid deposit amount' });
+      return;
+    }
+
+    // Ensure we're on Sepolia
+    if (chainId !== expectedChainId) {
+      try {
+        await switchChainAsync({ chainId: expectedChainId });
+        addToast({ type: 'info', title: 'Switched to Sepolia', message: 'Please tap Deposit again.' });
+      } catch {
+        addToast({ type: 'error', title: 'Network switch failed', message: 'Please switch to Sepolia in MetaMask.' });
+      }
+      return;
+    }
+
+    console.log('🚀 Sending approve tx directly via MetaMask:', {
+      token: USDC_TOKEN_ADDRESS,
+      spender: PREDICTION_MARKET_ADDRESS,
+      amount: parsedAmount.toString(),
+    });
+
     setStep('approve');
+    setIsPending(true);
+
     try {
-      writeApprove({
-        address: USDC_TOKEN_ADDRESS,
+      // Encode the approve call
+      const data = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [PREDICTION_MARKET_ADDRESS, parsedAmount],
       });
-    } catch (error) {
-      addToast({
-        type: 'error',
-        title: 'Approval failed',
-        message: error instanceof Error ? error.message : 'Please try again',
+
+      // Send directly via MetaMask — bypasses viem's broken HTTP transport
+      const txHash = await sendViaMetaMask({
+        from: address,
+        to: USDC_TOKEN_ADDRESS,
+        data,
+        gas: 100000n,
       });
+
+      console.log('✅ Approve tx sent:', txHash);
+      setApproveHash(txHash);
+      setIsPending(false);
+    } catch (error: any) {
+      console.error('❌ Approve failed:', error);
+      setIsPending(false);
       setStep('input');
+
+      if (error?.code === 4001) {
+        addToast({ type: 'error', title: 'Rejected', message: 'You rejected the transaction in MetaMask.' });
+      } else if (
+        error?.code === -32002 &&
+        typeof error?.message === 'string' &&
+        error.message.toLowerCase().includes('rpc endpoint returned too many errors')
+      ) {
+        addToast({
+          type: 'error',
+          title: 'MetaMask RPC busy',
+          message: 'MetaMask Sepolia RPC is rate-limited. Wait 30s and retry, or switch Sepolia RPC in MetaMask.',
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Approval failed',
+          message: error?.message?.substring(0, 100) || 'Please try again',
+        });
+      }
     }
-  }, [address, parsedAmount, writeApprove, addToast]);
+  }, [address, chainId, expectedChainId, parsedAmount, switchChainAsync, addToast]);
 
   const handleDeposit = useCallback(async () => {
     if (!address || !PREDICTION_MARKET_ADDRESS) return;
-    
+
+    // Ensure Sepolia
+    if (chainId !== expectedChainId) {
+      try {
+        await switchChainAsync({ chainId: expectedChainId });
+        addToast({ type: 'info', title: 'Switched to Sepolia', message: 'Please tap Deposit again.' });
+      } catch {
+        addToast({ type: 'error', title: 'Network switch failed', message: 'Switch to Sepolia in MetaMask.' });
+      }
+      return;
+    }
+
     setStep('deposit');
-    const channelId = `0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}` as `0x${string}`;
-    
+    setIsPending(true);
+
     try {
-      writeDeposit({
-        address: PREDICTION_MARKET_ADDRESS,
+      const channelId = `0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}` as `0x${string}`;
+
+      console.log('🚀 Sending deposit tx directly via MetaMask:', {
+        contract: PREDICTION_MARKET_ADDRESS,
+        amount: parsedAmount.toString(),
+        challengeId,
+        channelId,
+      });
+
+      const data = encodeFunctionData({
         abi: DEPOSIT_ABI,
         functionName: 'deposit',
         args: [parsedAmount, challengeId, channelId],
       });
-    } catch (error) {
-      addToast({
-        type: 'error',
-        title: 'Deposit failed',
-        message: error instanceof Error ? error.message : 'Please try again',
+
+      const txHash = await sendViaMetaMask({
+        from: address,
+        to: PREDICTION_MARKET_ADDRESS,
+        data,
+        gas: 500000n,
       });
+
+      console.log('✅ Deposit tx sent:', txHash);
+      setDepositHash(txHash);
+      setIsPending(false);
+    } catch (error: any) {
+      console.error('❌ Deposit failed:', error);
+      setIsPending(false);
       setStep('input');
+
+      if (error?.code === 4001) {
+        addToast({ type: 'error', title: 'Rejected', message: 'You rejected the transaction in MetaMask.' });
+      } else if (
+        error?.code === -32002 &&
+        typeof error?.message === 'string' &&
+        error.message.toLowerCase().includes('rpc endpoint returned too many errors')
+      ) {
+        addToast({
+          type: 'error',
+          title: 'MetaMask RPC busy',
+          message: 'MetaMask Sepolia RPC is rate-limited. Wait 30s and retry, or switch Sepolia RPC in MetaMask.',
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Deposit failed',
+          message: error?.message?.substring(0, 100) || 'Please try again',
+        });
+      }
     }
-  }, [address, parsedAmount, challengeId, writeDeposit, addToast]);
+  }, [address, chainId, expectedChainId, parsedAmount, challengeId, switchChainAsync, addToast]);
 
   const handleOpenSession = useCallback(async () => {
     setStep('session');
@@ -164,16 +299,29 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
     }
   }, [parsedAmount, challengeId, openSession, setSessionBalance, addToast, onClose, setDepositModalOpen]);
 
-  // Auto-progress through steps
-  if (approvalSuccess && step === 'approve') {
-    handleDeposit();
-  }
+  // Auto-progress: approval confirmed → deposit
+  useEffect(() => {
+    if (approvalSuccess && step === 'approve') {
+      console.log('✅ Approval confirmed, starting deposit...');
+      const timer = setTimeout(() => handleDeposit(), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [approvalSuccess, step, handleDeposit]);
   
-  if (depositSuccess && step === 'deposit') {
-    handleOpenSession();
-  }
+  // Auto-progress: deposit confirmed → open session
+  useEffect(() => {
+    if (depositSuccess && step === 'deposit') {
+      console.log('✅ Deposit confirmed, opening session...');
+      const timer = setTimeout(() => handleOpenSession(), 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [depositSuccess, step, handleOpenSession]);
 
   if (!isOpen) return null;
+
+  const isLoading = isPending || isWaitingApproval || isWaitingDeposit;
 
   return (
     <AnimatePresence>
@@ -289,7 +437,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                         step === 'approve' ? 'active' :
                         'completed'
                       }
-                      isLoading={isApproving || isWaitingApproval}
+                      isLoading={step === 'approve' && isLoading}
                     />
                     <div className="flex-1 h-0.5 bg-reel-border mx-2">
                       <div 
@@ -307,7 +455,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                         step === 'deposit' ? 'active' :
                         'completed'
                       }
-                      isLoading={isDepositing || isWaitingDeposit}
+                      isLoading={step === 'deposit' && isLoading}
                     />
                     <div className="flex-1 h-0.5 bg-reel-border mx-2">
                       <div 

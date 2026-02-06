@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { Wallet, ChevronDown, LogOut, Copy, ExternalLink, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, truncateAddress, formatTokenAmount } from '@/lib/utils';
@@ -15,7 +15,7 @@ export function ConnectButton() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const { data: balance } = useBalance({ address });
+  // Removed useBalance — it polls the RPC and triggers rate limits on free endpoints
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -144,7 +144,7 @@ export function ConnectButton() {
                       {truncateAddress(address || '', 6)}
                     </p>
                     <p className="text-sm text-reel-muted">
-                      {balance ? `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}` : 'Loading...'}
+                      Sepolia
                     </p>
                   </div>
                 </div>

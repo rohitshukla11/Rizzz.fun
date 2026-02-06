@@ -6,7 +6,7 @@ import {
   User, Wallet, Trophy, TrendingUp, History, 
   Settings, ChevronRight, Copy, Check, ExternalLink 
 } from 'lucide-react';
-import { useAccount, useBalance, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { ConnectButton } from '@/components/wallet/connect-button';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'predictions' | 'earnings'>('predictions');
   
   const { address, isConnected } = useAccount();
-  const { data: balance } = useBalance({ address });
+  // Removed useBalance — it polls the RPC and triggers rate limits on free endpoints
   const { disconnect } = useDisconnect();
   const { session } = useYellowSession();
 
@@ -118,7 +118,7 @@ export default function ProfilePage() {
                 </button>
               </div>
               <p className="text-sm text-reel-muted">
-                {balance ? `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}` : '...'}
+                Sepolia
               </p>
             </div>
           </div>
