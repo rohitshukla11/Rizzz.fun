@@ -52,7 +52,7 @@ contract ReelPredict is Ownable, ReentrancyGuard {
     address public yellowClearnode;
     uint256 public platformFeePercent = 250; // 2.5% in basis points
     uint256 public constant MAX_FEE = 1000; // 10% max fee
-    uint256 public minDeposit = 10 * 10**18; // 10 tokens minimum
+    uint256 public minDeposit = 1 * 10**6; // 1 USDC minimum (6 decimals)
     
     mapping(string => Challenge) public challenges;
     mapping(address => UserDeposit) public userDeposits;
