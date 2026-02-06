@@ -1,155 +1,88 @@
-# Yellow Network Nitrolite Integration
+# Yellow Network Integration (@erc7824/nitrolite)
 
-This integration follows the official Yellow Network documentation: https://docs.yellow.org/docs/learn/
+This module integrates the **real [@erc7824/nitrolite](https://www.npmjs.com/package/@erc7824/nitrolite) SDK** for state channel-based, gasless, instant predictions.
 
-## Architecture Overview
+## Architecture
 
-Based on Yellow Network's core concepts:
+```
+┌──────────────────────────────────────────────────┐
+│              ON-CHAIN (2 transactions total)      │
+│                                                   │
+│  1. approve USDC → Custody contract              │
+│  2. deposit     → lock funds in state channel    │
+│  …                                               │
+│  N. closeChannel + withdrawal → settle & exit    │
+└──────────────────────────────────────────────────┘
+                       │
+┌──────────────────────────────────────────────────┐
+│           OFF-CHAIN (unlimited, gasless)          │
+│                                                   │
+│  • WebSocket → Clearnode (NitroliteRPC)          │
+│  • Auth (createAuthRequestMessage)               │
+│  • App Sessions (createAppSessionMessage)        │
+│  • Predictions & Votes (createApplicationMessage)│
+│  • Close session (createCloseAppSessionMessage)  │
+└──────────────────────────────────────────────────┘
+```
 
-### 1. **App Sessions** (Multi-party Application Channels)
-- Each user creates an App Session when they deposit USDC
-- Sessions are multi-party channels with custom application state
-- State includes: balance, predictions, votes, and nonce
+## Files
 
-### 2. **Session Keys** (Delegated Keys for Gasless Interactions)
-- Generated when a session is created
-- Allows signing off-chain messages without wallet prompts
-- Enables truly gasless predictions and voting
+| File | Purpose |
+|------|---------|
+| `nitrolite-client.ts` | Core client wrapping `NitroliteClient` (on-chain) + `NitroliteRPC` (off-chain) |
+| `hooks.ts` | React hooks: `useYellowConnection`, `useYellowSession`, `usePredictions`, `useVoting`, `useSettlement` |
+| `settlement.ts` | Settlement service for challenge finalisation and payout distribution |
+| `index.ts` | Re-exports |
 
-### 3. **Message Envelope** (RPC Protocol)
-- All communication follows JSON-RPC 2.0 format
-- Messages are signed and verified
-- Supports request/response and push notifications
+## SDK Usage
 
-### 4. **Challenge-Response & Disputes**
-- Users can challenge state if they detect inconsistencies
-- Challenge-response mechanism ensures state integrity
-- Disputes are resolved on-chain if needed
-
-## Usage
-
-### Initialize Client
+The client uses the actual `@erc7824/nitrolite` SDK:
 
 ```typescript
-import { initializeNitroliteClient } from '@/lib/yellow';
+// On-chain operations (NitroliteClient from SDK)
+import { NitroliteClient } from '@erc7824/nitrolite';
+client.deposit(amount)
+client.createChannel({ initialAllocationAmounts: [userAmt, guestAmt] })
+client.closeChannel({ finalState })
+client.withdrawal(amount)
 
-const client = initializeNitroliteClient({
-  environment: 'sandbox', // or 'production'
-  appId: 'rizzz-fun',
-  signer: walletClient,
-});
+// Off-chain operations (NitroliteRPC from SDK)
+import { createAuthRequestMessage, createAppSessionMessage, createApplicationMessage } from '@erc7824/nitrolite';
+createAuthRequestMessage(signer, address)       // Auth to clearnode
+createAppSessionMessage(signer, sessionParams)   // Open app session
+createApplicationMessage(signer, sessionId, data) // Send prediction/vote
+createCloseAppSessionMessage(signer, closeReq)   // Close session
 ```
 
-### Create App Session
+## Demo Mode vs Live Mode
 
-```typescript
-// User deposits USDC to open a session
-const session = await client.createAppSession(
-  1000n * 10n ** 6n, // 1000 USDC (6 decimals)
-  'challenge_001'
-);
+| | Demo Mode | Live Mode |
+|---|---|---|
+| **When** | `NEXT_PUBLIC_YELLOW_CLEARNODE_URL` is empty | All Yellow env vars are set |
+| **On-chain** | Uses our ReelPredict contract | Uses Yellow Custody + Adjudicator |
+| **Off-chain** | Local in-memory state tracking | WebSocket to Clearnode |
+| **Session** | Simulated locally | Real NitroliteRPC session |
+| **For hackathon** | ✅ Full UX works end-to-end | ✅ Production-ready |
+
+## Env Vars
+
+```bash
+# Required for LIVE mode
+NEXT_PUBLIC_YELLOW_CLEARNODE_URL=wss://clearnet-sandbox.yellow.com/ws
+NEXT_PUBLIC_YELLOW_CUSTODY_ADDRESS=0x...
+NEXT_PUBLIC_YELLOW_ADJUDICATOR_ADDRESS=0x...
+NEXT_PUBLIC_YELLOW_GUEST_ADDRESS=0x...
+
+# Always set
+NEXT_PUBLIC_YELLOW_APP_ID=rizzz-fun
+NEXT_PUBLIC_USDC_TOKEN_ADDRESS=0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
 ```
 
-### Make Predictions (Gasless)
+## User Flow
 
-```typescript
-// All predictions happen off-chain via Session Keys
-// No gas fees, no wallet prompts!
-const prediction = await client.makePrediction(
-  'challenge_001',
-  'reel_123',
-  100n * 10n ** 6n // 100 USDC
-);
-```
-
-### Vote (Gasless)
-
-```typescript
-// Voting also uses Session Keys
-const vote = await client.vote('challenge_001', 'reel_123');
-```
-
-### Settlement
-
-```typescript
-// When challenge ends, request settlement
-const settlement = await client.requestSettlement('challenge_001');
-
-// Settlement data includes:
-// - stateHash: Final state hash
-// - signatures: Required signatures
-// - finalState: Complete session state
-
-// Submit to smart contract
-await contract.submitSettlement(challengeId, settlement);
-```
-
-## React Hooks
-
-### useYellowSession
-
-Manages the current App Session:
-
-```typescript
-const { session, state, openSession, availableBalance } = useYellowSession();
-```
-
-### usePredictions
-
-Manages predictions for a challenge:
-
-```typescript
-const { predictions, makePrediction, isLoading } = usePredictions('challenge_001');
-```
-
-### useVoting
-
-Manages votes:
-
-```typescript
-const { votes, castVote } = useVoting();
-```
-
-### useSettlement
-
-Handles settlement:
-
-```typescript
-const { settlementData, requestSettlement, isSettling } = useSettlement();
-```
-
-## Key Benefits
-
-1. **Gasless Operations**: All predictions and votes use Session Keys
-2. **Instant Finality**: Off-chain state updates are immediate
-3. **Secure**: Challenge-response mechanism ensures state integrity
-4. **Scalable**: Handles thousands of transactions per second
-5. **Cost-Effective**: Only pay gas for deposit and settlement
-
-## Flow Diagram
-
-```
-1. User deposits USDC (on-chain)
-   ↓
-2. App Session created (off-chain)
-   ↓
-3. Session Key generated (delegated signing)
-   ↓
-4. User makes predictions (off-chain, gasless)
-   ↓
-5. User votes (off-chain, gasless)
-   ↓
-6. Challenge ends
-   ↓
-7. Settlement requested (aggregates off-chain state)
-   ↓
-8. Settlement submitted to contract (on-chain, once)
-```
-
-## References
-
-- [Yellow Network Documentation](https://docs.yellow.org/docs/learn/)
-- [App Sessions](https://docs.yellow.org/docs/learn/core-concepts/app-sessions)
-- [Session Keys](https://docs.yellow.org/docs/learn/core-concepts/session-keys)
-- [Challenge-Response](https://docs.yellow.org/docs/learn/core-concepts/challenge-response)
-- [ERC-7824 (Nitrolite)](https://erc7824.org/)
+1. **Connect wallet** → MetaMask
+2. **Deposit USDC** → on-chain (approve + deposit to ReelPredict contract)
+3. **Open session** → off-chain (creates Yellow App Session)
+4. **Make predictions** → off-chain, instant, gasless (via `createApplicationMessage`)
+5. **Vote on reels** → off-chain, instant, gasless
+6. **Settle** → on-chain (close session, distribute payouts)

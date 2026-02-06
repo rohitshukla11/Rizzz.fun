@@ -8,6 +8,8 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Format token amount for display.
  * Defaults to 6 decimals to match USDC-style tokens unless overridden.
+ * Shows up to 4 decimal places, trimming trailing zeros.
+ * e.g. 1_000_000n → "1", 500_000n → "0.5", 1_000n → "0.001"
  */
 export function formatTokenAmount(amount: bigint, decimals: number = 6): string {
   const divisor = BigInt(Math.pow(10, decimals));
@@ -18,8 +20,10 @@ export function formatTokenAmount(amount: bigint, decimals: number = 6): string 
     return whole.toLocaleString();
   }
   
-  const fractionStr = fraction.toString().padStart(decimals, '0').slice(0, 2);
-  return `${whole.toLocaleString()}.${fractionStr}`;
+  // Show up to 4 significant decimal digits, then trim trailing zeros
+  const fractionStr = fraction.toString().padStart(decimals, '0').slice(0, 4);
+  const trimmed = fractionStr.replace(/0+$/, '');
+  return `${whole.toLocaleString()}.${trimmed || '0'}`;
 }
 
 /**

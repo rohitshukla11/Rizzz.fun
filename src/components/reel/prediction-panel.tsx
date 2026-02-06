@@ -15,7 +15,7 @@ interface PredictionPanelProps {
   onClose: () => void;
 }
 
-const quickAmounts = [10, 25, 50, 100, 250, 500];
+const quickAmounts = [0.01, 0.05, 0.1, 0.25, 0.5, 1];
 
 export function PredictionPanel({ reel, challengeId, onClose }: PredictionPanelProps) {
   const [amount, setAmount] = useState('');

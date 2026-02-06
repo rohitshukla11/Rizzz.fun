@@ -15,7 +15,7 @@ import { useAppStore, type Reel, type Challenge } from '@/store/app-store';
 import { useYellowSession } from '@/lib/yellow';
 import { cn, formatTokenAmount, formatTimeRemaining } from '@/lib/utils';
 
-// Mock data
+// Mock data — realistic small USDC pools for demo
 const mockChallenge: Challenge = {
   id: 'challenge_001',
   title: 'Best Dance Move Challenge',
@@ -24,7 +24,7 @@ const mockChallenge: Challenge = {
   coverImage: '',
   startTime: Date.now() - 86400000,
   endTime: Date.now() + 86400000 * 5,
-  totalPool: 125000n * 1_000_000n, // USDC-style mock values
+  totalPool: 12_500_000n, // 12.50 USDC (6 decimals)
   reelCount: 47,
   participantCount: 312,
   status: 'active',
@@ -40,7 +40,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Crazy moonwalk combo 🌙✨',
     votes: 2453,
-    predictionPool: 45000n * 1_000_000n,
+    predictionPool: 4_500_000n, // 4.50 USDC
     createdAt: Date.now() - 86400000,
   },
   {
@@ -52,7 +52,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'When the beat drops 🔥',
     votes: 1897,
-    predictionPool: 32000n * 1_000_000n,
+    predictionPool: 3_200_000n, // 3.20 USDC
     createdAt: Date.now() - 72000000,
   },
   {
@@ -64,7 +64,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Robot dance perfection 🤖',
     votes: 1654,
-    predictionPool: 28000n * 1_000_000n,
+    predictionPool: 2_800_000n, // 2.80 USDC
     createdAt: Date.now() - 58000000,
   },
   {
@@ -76,7 +76,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Flexibility goals 💪',
     votes: 1432,
-    predictionPool: 20000n * 1_000_000n,
+    predictionPool: 2_000_000n, // 2.00 USDC
     createdAt: Date.now() - 43000000,
   },
 ];
@@ -402,7 +402,7 @@ function ReelGridItem({
         <p className="text-white text-sm font-medium truncate">@{reel.creatorName}</p>
         <p className="text-white/70 text-xs truncate mt-0.5">{reel.title}</p>
         
-        {/* Predict button */}
+        {/* Predict button — shows total pool staked on this reel */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -411,7 +411,7 @@ function ReelGridItem({
           className="mt-2 w-full py-2 rounded-lg bg-reel-primary/90 hover:bg-reel-primary text-white text-xs font-medium transition-colors flex items-center justify-center gap-1"
         >
           <Coins className="w-3.5 h-3.5" />
-          {formatTokenAmount(reel.predictionPool)}
+          Pool: {formatTokenAmount(reel.predictionPool, 6)} USDC
         </button>
       </div>
     </motion.div>

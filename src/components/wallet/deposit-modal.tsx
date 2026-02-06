@@ -55,6 +55,44 @@ type Step = 'input' | 'approve' | 'deposit' | 'session' | 'success';
 
 const presetAmounts = [1, 5, 10, 50];
 
+// Sepolia chain ID in hex for MetaMask wallet_switchEthereumChain
+const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7'; // 11155111
+
+/**
+ * Ensure MetaMask is on the correct chain before sending a transaction.
+ * Uses wallet_switchEthereumChain directly via window.ethereum.
+ */
+async function ensureSepoliaChain(ethereum: any): Promise<void> {
+  try {
+    const currentChainId = await ethereum.request({ method: 'eth_chainId' });
+    if (currentChainId.toLowerCase() !== SEPOLIA_CHAIN_ID_HEX) {
+      console.log(`⚠️ MetaMask is on chain ${currentChainId}, switching to Sepolia (${SEPOLIA_CHAIN_ID_HEX})...`);
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+      });
+      // Small delay for MetaMask to finish switching
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  } catch (switchError: any) {
+    // 4902 = chain not added yet
+    if (switchError.code === 4902) {
+      await ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: SEPOLIA_CHAIN_ID_HEX,
+          chainName: 'Sepolia',
+          nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          rpcUrls: ['https://sepolia.infura.io/v3/cce1a039dc234d5d848ffdba280dff17'],
+          blockExplorerUrls: ['https://sepolia.etherscan.io'],
+        }],
+      });
+    } else {
+      throw switchError;
+    }
+  }
+}
+
 /**
  * Send a transaction directly via window.ethereum (MetaMask provider).
  * This completely bypasses viem/wagmi's HTTP transport and rate limiter.
@@ -70,6 +108,9 @@ async function sendViaMetaMask(params: {
   if (!ethereum) {
     throw new Error('MetaMask not found. Please install MetaMask.');
   }
+
+  // Force MetaMask onto Sepolia before sending
+  await ensureSepoliaChain(ethereum);
 
   const txParams: Record<string, string> = {
     from: params.from,
@@ -483,12 +524,12 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                     <Shield className="w-5 h-5 text-reel-secondary flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm text-white font-medium">
-                        How it works
+                        Powered by Yellow Network (ERC-7824)
                       </p>
                       <p className="text-xs text-reel-muted mt-1">
-                        Deposit once to open a Yellow Network session. 
-                        Then make unlimited instant predictions without gas fees. 
-                        Withdraw anytime after the challenge ends.
+                        Deposit once → open a state channel session → make unlimited 
+                        instant, gasless predictions off-chain → settle on-chain when done. 
+                        Your funds are always protected by smart contracts.
                       </p>
                     </div>
                   </div>

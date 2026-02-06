@@ -5,7 +5,7 @@
  */
 
 import { ethers } from 'ethers';
-import { getNitroliteClient, SessionState, PredictionState } from './nitrolite-client';
+import { getYellowClientSafe, type SessionState, type PredictionState } from './nitrolite-client';
 
 // Contract ABI for settlement
 const REEL_PREDICT_ABI = [
@@ -180,7 +180,8 @@ export class SettlementService {
       throw new Error('Signer required for settlement');
     }
 
-    const client = getNitroliteClient();
+    const client = getYellowClientSafe();
+    if (!client) throw new Error('Yellow Network client not initialised');
     
     // Request settlement from Yellow Network App Session
     // This aggregates all off-chain state
