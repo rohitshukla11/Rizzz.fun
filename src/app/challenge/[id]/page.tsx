@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Users, Coins, Trophy, Zap, Play, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Coins, Trophy, Zap, Play, CheckCircle, XCircle, Flame, Gift } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAccount } from 'wagmi';
@@ -14,13 +14,21 @@ import { Button } from '@/components/ui/button';
 import { useAppStore, type Reel, type Challenge } from '@/store/app-store';
 import { useYellowSession, usePredictions, useSettlement } from '@/lib/yellow';
 import { cn, formatTokenAmount, formatTimeRemaining } from '@/lib/utils';
+import {
+  getCurrentMultiplierInfo,
+  calculateTimeWeightedPayouts,
+  getMultiplier,
+  formatMultiplier,
+  CREATOR_FEE_BPS,
+  PLATFORM_FEE_BPS,
+  type TimedPrediction,
+} from '@/lib/payout-algorithm';
 
 const DEMO_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── Challenge + Reel data factories ──────────────
 
 function getDemoChallenge(): Challenge {
-  // Read persisted start time or create a new one
   let startTime: number;
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('rizzz-demo-start');
@@ -36,7 +44,7 @@ function getDemoChallenge(): Challenge {
   return {
     id: 'demo_5min',
     title: '⚡ Quick Demo — 5 Min Challenge',
-    description: 'Predict which reel wins! Deposit once → predict instantly (gasless) → settle when time runs out. Powered by Yellow Network.',
+    description: 'Predict which reel wins! Early predictions earn up to 5× multiplier. 5% of pool goes to the winning creator.',
     theme: 'demo',
     coverImage: '',
     startTime,
@@ -52,7 +60,7 @@ function getDefaultChallenge(): Challenge {
   return {
     id: 'challenge_001',
     title: 'Best Dance Move Challenge',
-    description: 'Show us your best dance moves! The most creative and entertaining dancer wins the grand prize pool.',
+    description: 'Show us your best dance moves! Early predictions earn up to 5× multiplier. 5% of pool goes to the winning creator.',
     theme: 'dance',
     coverImage: '',
     startTime: Date.now() - 86400000,
@@ -117,7 +125,7 @@ const mockReels: Reel[] = [
 
 type ViewMode = 'grid' | 'feed';
 
-// ── Demo results overlay ─────────────────────────
+// ── Demo results overlay — with time-weighted payouts ──
 
 function DemoResultsOverlay({
   challenge,
@@ -134,10 +142,60 @@ function DemoResultsOverlay({
   const winnerIdx = Math.abs(challenge.startTime) % reels.length;
   const winner = reels[winnerIdx];
 
-  // Calculate user's outcome
-  const userBetOnWinner = predictions.some(p => p.reelId === winner?.id);
+  // Build TimedPrediction[] from user's predictions + mock "other players" predictions
+  const allPredictions: TimedPrediction[] = [];
+
+  // Add user's actual predictions
+  for (const p of predictions) {
+    allPredictions.push({
+      id: p.id || `user_${allPredictions.length}`,
+      reelId: p.reelId,
+      amount: BigInt(p.amount ?? 0),
+      timestamp: p.timestamp || (challenge.startTime + 60_000), // default 1 min in
+      predictor: 'user',
+    });
+  }
+
+  // Add simulated "other players" predictions to fill out the pool
+  const mockOtherPredictions: TimedPrediction[] = reels.map((reel, i) => ({
+    id: `mock_${i}`,
+    reelId: reel.id,
+    amount: reel.predictionPool,
+    timestamp: challenge.startTime + (i + 1) * 30_000, // staggered bids
+    predictor: `other_${i}`,
+  }));
+  allPredictions.push(...mockOtherPredictions);
+
+  // Calculate payouts using the time-weighted algorithm
+  const payoutBreakdown = calculateTimeWeightedPayouts(
+    allPredictions,
+    winner?.id || '',
+    challenge.startTime,
+    challenge.endTime,
+  );
+
+  // Sum user payouts
+  let userPayout = 0n;
+  let userBetOnWinner = false;
+  for (const p of predictions) {
+    const id = p.id || `user_${predictions.indexOf(p)}`;
+    if (p.reelId === winner?.id) {
+      userBetOnWinner = true;
+    }
+    const payout = payoutBreakdown.predictorPayouts.get(id);
+    if (payout) userPayout += payout;
+  }
+
   const userTotalStaked = predictions.reduce((s: bigint, p: any) => s + BigInt(p.amount ?? 0), 0n);
-  const payout = userBetOnWinner ? (userTotalStaked * 180n) / 100n : 0n; // 1.8x payout
+
+  // Show multiplier user received
+  const userMultiplier = predictions.length > 0
+    ? getMultiplier(
+        predictions[0].timestamp || challenge.startTime + 60_000,
+        challenge.startTime,
+        challenge.endTime,
+      )
+    : 1;
 
   return (
     <motion.div
@@ -149,12 +207,12 @@ function DemoResultsOverlay({
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-        className="bg-reel-surface rounded-2xl border border-reel-border p-6 max-w-md w-full"
+        className="bg-reel-surface rounded-2xl border border-reel-border p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
       >
         <div className="text-center mb-6">
           <Trophy className="w-16 h-16 text-reel-warning mx-auto mb-3" />
           <h2 className="font-display text-2xl font-bold text-white">Challenge Complete!</h2>
-          <p className="text-reel-muted text-sm mt-1">Settlement finalised on-chain</p>
+          <p className="text-reel-muted text-sm mt-1">Settlement finalised via Yellow Network</p>
         </div>
 
         {/* Winner */}
@@ -169,6 +227,33 @@ function DemoResultsOverlay({
           <div className="flex items-center justify-between text-sm mt-2">
             <span className="text-reel-muted">Winning pool</span>
             <span className="text-reel-warning font-mono">{formatTokenAmount(winner?.predictionPool ?? 0n, 6)} USDC</span>
+          </div>
+        </div>
+
+        {/* Pool breakdown */}
+        <div className="bg-reel-card rounded-xl p-4 mb-4 border border-reel-border space-y-2">
+          <h4 className="text-sm font-medium text-white mb-2">Pool Breakdown</h4>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-reel-muted flex items-center gap-1">
+              <Coins className="w-3 h-3" /> Total Pool
+            </span>
+            <span className="text-white font-mono">{formatTokenAmount(payoutBreakdown.totalPool, 6)} USDC</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-reel-muted flex items-center gap-1">
+              <Gift className="w-3 h-3 text-purple-400" /> Creator Fee (5%)
+            </span>
+            <span className="text-purple-400 font-mono">{formatTokenAmount(payoutBreakdown.creatorFee, 6)} USDC</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-reel-muted flex items-center gap-1">
+              <Zap className="w-3 h-3 text-reel-warning" /> Platform Fee (2.5%)
+            </span>
+            <span className="text-reel-warning font-mono">{formatTokenAmount(payoutBreakdown.platformFee, 6)} USDC</span>
+          </div>
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-reel-border">
+            <span className="text-reel-muted">Distributed to winners</span>
+            <span className="text-reel-success font-mono">{formatTokenAmount(payoutBreakdown.distributablePool, 6)} USDC</span>
           </div>
         </div>
 
@@ -203,11 +288,25 @@ function DemoResultsOverlay({
                 <span className="text-white font-mono">{formatTokenAmount(userTotalStaked, 6)} USDC</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-reel-muted flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-orange-400" /> Your multiplier
+                </span>
+                <span className="text-orange-400 font-mono">{formatMultiplier(userMultiplier)}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-reel-border/50">
                 <span className="text-reel-muted">Payout</span>
-                <span className={cn('font-mono', userBetOnWinner ? 'text-reel-success' : 'text-reel-error')}>
-                  {userBetOnWinner ? '+' : ''}{formatTokenAmount(payout, 6)} USDC
+                <span className={cn('font-mono font-bold', userBetOnWinner ? 'text-reel-success' : 'text-reel-error')}>
+                  {userBetOnWinner ? '+' : ''}{formatTokenAmount(userPayout, 6)} USDC
                 </span>
               </div>
+              {userBetOnWinner && userTotalStaked > 0n && (
+                <div className="flex justify-between">
+                  <span className="text-reel-muted">ROI</span>
+                  <span className="text-reel-success font-mono text-xs">
+                    {userTotalStaked > 0n ? `${((Number(userPayout) / Number(userTotalStaked) - 1) * 100).toFixed(0)}%` : '0%'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -218,7 +317,7 @@ function DemoResultsOverlay({
             <Zap className="w-3 h-3 text-reel-warning" />
             <span className="text-reel-warning font-medium">Yellow Network Settlement</span>
           </div>
-          <p>Final state signed by all parties and submitted on-chain. Your balance is updated in the custody contract.</p>
+          <p>Final state signed by all parties and submitted on-chain. Payouts weighted by prediction timing — early birds earn more!</p>
         </div>
 
         <Button onClick={onRestart} className="w-full">
@@ -274,7 +373,6 @@ export default function ChallengePage() {
       const remaining = endTime - Date.now();
       if (remaining <= 0) {
         setTimeLeft('00:00');
-        // Trigger settlement and show results
         if (!showResults) {
           requestSettlement(challengeId).catch(console.warn);
           setShowResults(true);
@@ -291,8 +389,20 @@ export default function ChallengePage() {
     return () => clearInterval(interval);
   }, [isDemo, mockChallenge.endTime, showResults, challengeId, requestSettlement]);
 
+  // ── Live multiplier for the header badge ──────
+  const [currentMultiplier, setCurrentMultiplier] = useState<string>('');
+  useEffect(() => {
+    if (!activeChallenge) return;
+    const tick = () => {
+      const info = getCurrentMultiplierInfo(activeChallenge.startTime, activeChallenge.endTime);
+      setCurrentMultiplier(info.formatted);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [activeChallenge]);
+
   const handleRestartDemo = useCallback(() => {
-    // Reset demo timer
     if (typeof window !== 'undefined') {
       localStorage.removeItem('rizzz-demo-start');
       localStorage.removeItem('rizzz-session');
@@ -346,11 +456,18 @@ export default function ChallengePage() {
                 >
                   <ArrowLeft className="w-5 h-5 text-white" />
                 </Link>
-                <h1 className="font-display text-lg font-semibold text-white truncate max-w-[200px]">
+                <h1 className="font-display text-lg font-semibold text-white truncate max-w-[180px]">
                   {challenge.title}
                 </h1>
               </div>
               <div className="flex items-center gap-2">
+                {/* Live multiplier badge */}
+                {currentMultiplier && (
+                  <div className="px-2 py-1 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center gap-1">
+                    <Flame className="w-3 h-3 text-orange-400" />
+                    <span className="text-xs font-mono font-bold text-orange-400">{currentMultiplier}</span>
+                  </div>
+                )}
                 {isDemo && timeLeft && (
                   <div className={cn(
                     'px-3 py-1.5 rounded-full font-mono text-sm font-bold flex items-center gap-1.5',
@@ -378,6 +495,17 @@ export default function ChallengePage() {
             >
               <p className="text-reel-muted text-sm">{challenge.description}</p>
               
+              {/* ── Early bird explainer ──────────── */}
+              <div className="mt-3 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <div className="flex items-start gap-2">
+                  <Flame className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-orange-300/90">
+                    <span className="font-semibold">Early Bird Bonus:</span> Predict early for up to <span className="font-mono font-bold">5×</span> multiplier on your payout.
+                    The winning reel&apos;s creator earns <span className="font-mono font-bold">5%</span> of the pool.
+                  </div>
+                </div>
+              </div>
+
               {/* Stats row */}
               <div className="mt-4 flex items-center gap-4 overflow-x-auto pb-2">
                 <StatBadge 
@@ -393,16 +521,16 @@ export default function ChallengePage() {
                   variant="primary"
                 />
                 <StatBadge 
+                  icon={<Flame className="w-4 h-4" />}
+                  label="Multiplier"
+                  value={currentMultiplier || '1.00×'}
+                  variant="accent"
+                />
+                <StatBadge 
                   icon={<Users className="w-4 h-4" />}
                   label="Predictors"
                   value={challenge.participantCount.toString()}
                   variant="secondary"
-                />
-                <StatBadge 
-                  icon={<Trophy className="w-4 h-4" />}
-                  label="Reels"
-                  value={challenge.reelCount.toString()}
-                  variant="accent"
                 />
               </div>
 
@@ -617,7 +745,13 @@ function ReelGridItem({
         <p className="text-white text-sm font-medium truncate">@{reel.creatorName}</p>
         <p className="text-white/70 text-xs truncate mt-0.5">{reel.title}</p>
         
-        {/* Predict button — shows total pool staked on this reel */}
+        {/* Creator earns badge */}
+        <div className="flex items-center gap-1 mt-1 text-[10px] text-purple-300/80">
+          <Gift className="w-2.5 h-2.5" />
+          Creator earns 5% if wins
+        </div>
+
+        {/* Predict button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
