@@ -19,8 +19,8 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 safe-bottom">
-      <div className="glass-strong border-t border-reel-border/50">
-        <div className="flex items-center justify-around h-16 px-2">
+      <div className="glass-strong">
+        <div className="flex items-center justify-around h-16 px-2 max-w-lg mx-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -31,14 +31,14 @@ export function BottomNav() {
                 href={item.href}
                 className={cn(
                   'relative flex flex-col items-center justify-center flex-1 h-full',
-                  item.special && 'flex-none px-4'
+                  item.special && 'flex-none px-4',
                 )}
               >
                 {item.special ? (
                   <motion.div
                     whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-12 h-12 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent flex items-center justify-center -mt-4 shadow-lg glow-primary"
+                    whileTap={{ scale: 0.9 }}
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent flex items-center justify-center -mt-5 shadow-xl glow-primary"
                   >
                     <Icon className="w-6 h-6 text-white" />
                   </motion.div>
@@ -46,22 +46,22 @@ export function BottomNav() {
                   <>
                     <motion.div
                       animate={{
-                        scale: isActive ? 1 : 0.9,
+                        scale: isActive ? 1.1 : 1,
                         y: isActive ? -2 : 0,
                       }}
                       transition={{ type: 'spring', stiffness: 300 }}
                     >
                       <Icon
                         className={cn(
-                          'w-6 h-6 transition-colors',
-                          isActive ? 'text-reel-primary' : 'text-reel-muted'
+                          'w-5 h-5 transition-colors',
+                          isActive ? 'text-reel-primary' : 'text-reel-muted',
                         )}
                       />
                     </motion.div>
                     <span
                       className={cn(
                         'text-[10px] mt-1 transition-colors',
-                        isActive ? 'text-reel-primary font-medium' : 'text-reel-muted'
+                        isActive ? 'text-reel-primary font-semibold' : 'text-reel-muted',
                       )}
                     >
                       {item.label}
@@ -69,7 +69,7 @@ export function BottomNav() {
                     {isActive && (
                       <motion.div
                         layoutId="bottomNavIndicator"
-                        className="absolute -top-0.5 w-8 h-0.5 bg-reel-primary rounded-full"
+                        className="absolute -top-[1px] w-10 h-[2px] bg-gradient-to-r from-reel-primary to-reel-accent rounded-full"
                         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                       />
                     )}

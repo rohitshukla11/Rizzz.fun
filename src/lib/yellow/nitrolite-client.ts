@@ -894,7 +894,7 @@ export class YellowNitroliteClient extends EventEmitter {
       participants: [userAddress],
       state: this.state,
       createdAt: now,
-      expiresAt: now + 7 * 24 * 60 * 60 * 1000,
+      expiresAt: now + 2 * 60 * 1000, // 2 minutes
       status: 'active',
       availableBalance: depositAmount,
     };

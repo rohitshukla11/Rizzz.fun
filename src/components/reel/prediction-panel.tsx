@@ -351,7 +351,7 @@ export function PredictionPanel({ reel, challengeId, onClose }: PredictionPanelP
 
                     {/* Fee note */}
                     <p className="text-[10px] text-reel-muted/60 pt-1">
-                      5% → reel creator • 2.5% → platform • rest distributed by time-weighted share
+                      10% → reel creator • 2.5% → platform • rest distributed by time-weighted share
                     </p>
                   </div>
                 </motion.div>

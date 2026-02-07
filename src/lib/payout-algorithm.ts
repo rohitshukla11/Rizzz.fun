@@ -22,7 +22,7 @@
  * PAYOUT DISTRIBUTION
  * ──────────────────────────────────────────────
  *
- *   1. Creator fee  = CREATOR_FEE_BPS of totalPool  → to winning reel creator
+ *   1. Creator fee  = 10% of totalPool  → to winning reel creator
  *   2. Platform fee = PLATFORM_FEE_BPS of totalPool → to platform
  *   3. distributablePool = totalPool − creatorFee − platformFee
  *   4. For each prediction on the WINNING reel:
@@ -41,8 +41,8 @@ export const MAX_MULTIPLIER = 5.0;
 /** Minimum multiplier for bids placed at t = contestEnd */
 export const MIN_MULTIPLIER = 1.0;
 
-/** Creator fee in basis points (500 = 5%) */
-export const CREATOR_FEE_BPS = 500;
+/** Creator fee in basis points (1000 = 10%) */
+export const CREATOR_FEE_BPS = 1000;
 
 /** Platform fee in basis points (250 = 2.5%) */
 export const PLATFORM_FEE_BPS = 250;
