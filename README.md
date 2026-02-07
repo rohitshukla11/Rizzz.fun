@@ -41,11 +41,17 @@ A mobile-first prediction market for short-form video content. Users predict whi
 
 ## 🚀 Getting Started
 
+### Quick Start (5 minutes)
+
+See [QUICK_START.md](./QUICK_START.md) for a fast setup guide.
+
 ### Prerequisites
 
 - Node.js 18+
 - npm or yarn
 - MetaMask or another Web3 wallet
+- Sepolia testnet ETH (for testing)
+- WalletConnect Project ID ([get one here](https://cloud.walletconnect.com/))
 
 ### Installation
 
@@ -162,6 +168,24 @@ Rizzz.fun is a Progressive Web App:
 - Reentrancy protection
 - Multi-signature settlement verification
 - Platform fee caps
+
+## 🧪 Testing
+
+### Quick Test
+```bash
+# Run setup check
+./scripts/test-flow.sh
+
+# Start dev server
+npm run dev
+```
+
+### Complete Testing Guide
+See [TESTING_GUIDE.md](./TESTING_GUIDE.md) for:
+- Complete user flow testing
+- Step-by-step instructions
+- Troubleshooting guide
+- Test scenarios
 
 ## 🗺️ Roadmap
 

@@ -31,7 +31,7 @@ function getWagmiConfig() {
   const connectors = [injected()];
   
   if (projectId && projectId !== 'demo' && projectId !== 'your_walletconnect_project_id') {
-    connectors.push(walletConnect({ projectId }));
+    connectors.push(walletConnect({ projectId }) as any);
   } else if (!projectId) {
     console.warn(
       '⚠️ WalletConnect Project ID not set. Mobile wallet connections will not work.\n' +

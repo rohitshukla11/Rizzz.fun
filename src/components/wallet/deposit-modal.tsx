@@ -11,10 +11,15 @@ import { useYellowSession } from '@/lib/yellow';
 import { useAppStore } from '@/store/app-store';
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { getYellowClientSafe } from '@/lib/yellow/nitrolite-client';
 
-// Contract addresses
+// Contract addresses (only needed for on-chain deposit fallback)
 const USDC_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_USDC_TOKEN_ADDRESS as `0x${string}`;
 const PREDICTION_MARKET_ADDRESS = process.env.NEXT_PUBLIC_PREDICTION_MARKET_ADDRESS as `0x${string}`;
+
+// Whether we have a Yellow clearnode URL (sandbox or production)
+const HAS_CLEARNODE = !!process.env.NEXT_PUBLIC_YELLOW_CLEARNODE_URL;
+const IS_SANDBOX = process.env.NEXT_PUBLIC_YELLOW_CLEARNODE_URL?.includes('sandbox') ?? false;
 
 // ERC20 ABI for approval
 const ERC20_ABI = [
@@ -51,7 +56,8 @@ interface DepositModalProps {
   challengeId: string;
 }
 
-type Step = 'input' | 'approve' | 'deposit' | 'session' | 'success';
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+type Step = 'input' | 'faucet' | 'approve' | 'deposit' | 'session' | 'success' | (string & {});
 
 const presetAmounts = [1, 5, 10, 50];
 
@@ -60,7 +66,6 @@ const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7'; // 11155111
 
 /**
  * Ensure MetaMask is on the correct chain before sending a transaction.
- * Uses wallet_switchEthereumChain directly via window.ethereum.
  */
 async function ensureSepoliaChain(ethereum: any): Promise<void> {
   try {
@@ -71,11 +76,9 @@ async function ensureSepoliaChain(ethereum: any): Promise<void> {
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
       });
-      // Small delay for MetaMask to finish switching
       await new Promise((r) => setTimeout(r, 500));
     }
   } catch (switchError: any) {
-    // 4902 = chain not added yet
     if (switchError.code === 4902) {
       await ethereum.request({
         method: 'wallet_addEthereumChain',
@@ -95,8 +98,6 @@ async function ensureSepoliaChain(ethereum: any): Promise<void> {
 
 /**
  * Send a transaction directly via window.ethereum (MetaMask provider).
- * This completely bypasses viem/wagmi's HTTP transport and rate limiter.
- * MetaMask handles gas estimation and RPC calls internally using its own configured RPC.
  */
 async function sendViaMetaMask(params: {
   from: string;
@@ -109,7 +110,6 @@ async function sendViaMetaMask(params: {
     throw new Error('MetaMask not found. Please install MetaMask.');
   }
 
-  // Force MetaMask onto Sepolia before sending
   await ensureSepoliaChain(ethereum);
 
   const txParams: Record<string, string> = {
@@ -148,15 +148,65 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   // USDC uses 6 decimals
   const parsedAmount = amount ? parseTokenAmount(amount, 6) : 0n;
 
-  // Watch for approval tx confirmation
+  // Watch for approval tx confirmation (only used in on-chain flow)
   const { isLoading: isWaitingApproval, isSuccess: approvalSuccess } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
 
-  // Watch for deposit tx confirmation
+  // Watch for deposit tx confirmation (only used in on-chain flow)
   const { isLoading: isWaitingDeposit, isSuccess: depositSuccess } = useWaitForTransactionReceipt({
     hash: depositHash,
   });
+
+  // ── Sandbox flow: faucet → open session (no on-chain tx!) ──
+
+  const handleSandboxDeposit = useCallback(async () => {
+    if (!address) {
+      addToast({ type: 'error', title: 'Wallet not connected', message: 'Please connect your wallet first' });
+      return;
+    }
+    if (parsedAmount === 0n) {
+      addToast({ type: 'error', title: 'Invalid amount', message: 'Enter a valid deposit amount' });
+      return;
+    }
+
+    setStep('faucet');
+    setIsPending(true);
+
+    try {
+      // Open Yellow session — the hook handles faucet + auth + session creation
+      // (faucet tokens are requested for the session key address, not the wallet)
+      console.log('🚰 Starting sandbox session (faucet + auth handled by hooks)...');
+      setStep('session');
+      const session = await openSession(parsedAmount, challengeId);
+      setSessionBalance(session.availableBalance);
+      setStep('success');
+
+      addToast({
+        type: 'success',
+        title: 'Session opened!',
+        message: 'You can now make instant, gasless predictions',
+      });
+
+      setTimeout(() => {
+        onClose();
+        setStep('input');
+        setDepositModalOpen(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Sandbox deposit failed:', error);
+      addToast({
+        type: 'error',
+        title: 'Failed',
+        message: error instanceof Error ? error.message : 'Please try again',
+      });
+      setStep('input');
+    } finally {
+      setIsPending(false);
+    }
+  }, [address, parsedAmount, challengeId, openSession, setSessionBalance, addToast, onClose, setDepositModalOpen]);
+
+  // ── On-chain flow: approve → deposit → open session ──
 
   const handleApprove = useCallback(async () => {
     if (!address) {
@@ -176,7 +226,6 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
       return;
     }
 
-    // Ensure we're on Sepolia
     if (chainId !== expectedChainId) {
       try {
         await switchChainAsync({ chainId: expectedChainId });
@@ -197,14 +246,12 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
     setIsPending(true);
 
     try {
-      // Encode the approve call
       const data = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [PREDICTION_MARKET_ADDRESS, parsedAmount],
       });
 
-      // Send directly via MetaMask — bypasses viem's broken HTTP transport
       const txHash = await sendViaMetaMask({
         from: address,
         to: USDC_TOKEN_ADDRESS,
@@ -222,16 +269,6 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
 
       if (error?.code === 4001) {
         addToast({ type: 'error', title: 'Rejected', message: 'You rejected the transaction in MetaMask.' });
-      } else if (
-        error?.code === -32002 &&
-        typeof error?.message === 'string' &&
-        error.message.toLowerCase().includes('rpc endpoint returned too many errors')
-      ) {
-        addToast({
-          type: 'error',
-          title: 'MetaMask RPC busy',
-          message: 'MetaMask Sepolia RPC is rate-limited. Wait 30s and retry, or switch Sepolia RPC in MetaMask.',
-        });
       } else {
         addToast({
           type: 'error',
@@ -245,7 +282,6 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   const handleDeposit = useCallback(async () => {
     if (!address || !PREDICTION_MARKET_ADDRESS) return;
 
-    // Ensure Sepolia
     if (chainId !== expectedChainId) {
       try {
         await switchChainAsync({ chainId: expectedChainId });
@@ -292,16 +328,6 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
 
       if (error?.code === 4001) {
         addToast({ type: 'error', title: 'Rejected', message: 'You rejected the transaction in MetaMask.' });
-      } else if (
-        error?.code === -32002 &&
-        typeof error?.message === 'string' &&
-        error.message.toLowerCase().includes('rpc endpoint returned too many errors')
-      ) {
-        addToast({
-          type: 'error',
-          title: 'MetaMask RPC busy',
-          message: 'MetaMask Sepolia RPC is rate-limited. Wait 30s and retry, or switch Sepolia RPC in MetaMask.',
-        });
       } else {
         addToast({
           type: 'error',
@@ -340,7 +366,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
     }
   }, [parsedAmount, challengeId, openSession, setSessionBalance, addToast, onClose, setDepositModalOpen]);
 
-  // Auto-progress: approval confirmed → deposit
+  // Auto-progress: approval confirmed → deposit (on-chain flow only)
   useEffect(() => {
     if (approvalSuccess && step === 'approve') {
       console.log('✅ Approval confirmed, starting deposit...');
@@ -350,7 +376,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
     return undefined;
   }, [approvalSuccess, step, handleDeposit]);
   
-  // Auto-progress: deposit confirmed → open session
+  // Auto-progress: deposit confirmed → open session (on-chain flow only)
   useEffect(() => {
     if (depositSuccess && step === 'deposit') {
       console.log('✅ Deposit confirmed, opening session...');
@@ -363,6 +389,11 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
   if (!isOpen) return null;
 
   const isLoading = isPending || isWaitingApproval || isWaitingDeposit;
+
+  // Choose the right action button handler
+  const handleMainAction = HAS_CLEARNODE
+    ? handleSandboxDeposit  // Sandbox/live: faucet → session (no on-chain tx)
+    : handleApprove;         // No clearnode: on-chain approve → deposit → session
 
   return (
     <AnimatePresence>
@@ -389,12 +420,14 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
               </div>
               <div>
                 <h3 className="font-display text-lg font-semibold text-white">
-                  {step === 'success' ? 'All Set!' : 'Deposit & Join'}
+                  {step === 'success' ? 'All Set!' : 'Start Session'}
                 </h3>
                 <p className="text-xs text-reel-muted">
                   {step === 'success' 
                     ? 'Start predicting now'
-                    : 'One-time on-chain deposit'}
+                    : HAS_CLEARNODE 
+                      ? 'Instant setup via Yellow Network' 
+                      : 'One-time on-chain deposit'}
                 </p>
               </div>
             </div>
@@ -435,7 +468,7 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                 {/* Amount input */}
                 <div className="mb-4">
                   <label className="block text-sm text-reel-muted mb-2">
-                    Deposit Amount
+                    Session Amount
                   </label>
                   <input
                     type="text"
@@ -469,53 +502,88 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
 
                 {/* Progress steps */}
                 <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <StepIndicator
-                      number={1}
-                      label="Approve"
-                      status={
-                        step === 'input' ? 'pending' :
-                        step === 'approve' ? 'active' :
-                        'completed'
-                      }
-                      isLoading={step === 'approve' && isLoading}
-                    />
-                    <div className="flex-1 h-0.5 bg-reel-border mx-2">
-                      <div 
-                        className={cn(
-                          'h-full bg-reel-primary transition-all',
-                          step === 'input' || step === 'approve' ? 'w-0' : 'w-full'
-                        )}
+                  {HAS_CLEARNODE ? (
+                    /* Sandbox/live flow: simpler steps */
+                    <div className="flex items-center justify-between mb-4">
+                      <StepIndicator
+                        number={1}
+                        label="Fund"
+                        status={
+                          step === 'input' ? 'pending' :
+                          step === 'faucet' ? 'active' :
+                          'completed'
+                        }
+                        isLoading={step === 'faucet' && isLoading}
+                      />
+                      <div className="flex-1 h-0.5 bg-reel-border mx-2">
+                        <div 
+                          className={cn(
+                            'h-full bg-reel-primary transition-all',
+                            step === 'input' || step === 'faucet' ? 'w-0' : 'w-full'
+                          )}
+                        />
+                      </div>
+                      <StepIndicator
+                        number={2}
+                        label="Session"
+                        status={
+                          step === 'session' ? 'active' :
+                          step === 'success' ? 'completed' :
+                          'pending'
+                        }
+                        isLoading={step === 'session'}
                       />
                     </div>
-                    <StepIndicator
-                      number={2}
-                      label="Deposit"
-                      status={
-                        step === 'input' || step === 'approve' ? 'pending' :
-                        step === 'deposit' ? 'active' :
-                        'completed'
-                      }
-                      isLoading={step === 'deposit' && isLoading}
-                    />
-                    <div className="flex-1 h-0.5 bg-reel-border mx-2">
-                      <div 
-                        className={cn(
-                          'h-full bg-reel-primary transition-all',
-                          step === 'session' || step === 'success' ? 'w-full' : 'w-0'
-                        )}
+                  ) : (
+                    /* On-chain fallback flow: 3 steps */
+                    <div className="flex items-center justify-between mb-4">
+                      <StepIndicator
+                        number={1}
+                        label="Approve"
+                        status={
+                          step === 'input' ? 'pending' :
+                          step === 'approve' ? 'active' :
+                          'completed'
+                        }
+                        isLoading={step === 'approve' && isLoading}
+                      />
+                      <div className="flex-1 h-0.5 bg-reel-border mx-2">
+                        <div 
+                          className={cn(
+                            'h-full bg-reel-primary transition-all',
+                            step === 'input' || step === 'approve' ? 'w-0' : 'w-full'
+                          )}
+                        />
+                      </div>
+                      <StepIndicator
+                        number={2}
+                        label="Deposit"
+                        status={
+                          step === 'input' || step === 'approve' ? 'pending' :
+                          step === 'deposit' ? 'active' :
+                          'completed'
+                        }
+                        isLoading={step === 'deposit' && isLoading}
+                      />
+                      <div className="flex-1 h-0.5 bg-reel-border mx-2">
+                        <div 
+                          className={cn(
+                            'h-full bg-reel-primary transition-all',
+                            step === 'session' || step === 'success' ? 'w-full' : 'w-0'
+                          )}
+                        />
+                      </div>
+                      <StepIndicator
+                        number={3}
+                        label="Connect"
+                        status={
+                          step === 'session' ? 'active' :
+                          step === 'success' ? 'completed' :
+                          'pending'
+                        }
                       />
                     </div>
-                    <StepIndicator
-                      number={3}
-                      label="Connect"
-                      status={
-                        step === 'session' ? 'active' :
-                        step === 'success' ? 'completed' :
-                        'pending'
-                      }
-                    />
-                  </div>
+                  )}
                 </div>
 
                 {/* Info box */}
@@ -527,9 +595,19 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
                         Powered by Yellow Network (ERC-7824)
                       </p>
                       <p className="text-xs text-reel-muted mt-1">
-                        Deposit once → open a state channel session → make unlimited 
-                        instant, gasless predictions off-chain → settle on-chain when done. 
-                        Your funds are always protected by smart contracts.
+                        {HAS_CLEARNODE ? (
+                          <>
+                            Your session is powered by Yellow Network state channels. 
+                            Predictions are instant and gasless — no blockchain confirmations needed. 
+                            Funds are settled on-chain when your session ends.
+                          </>
+                        ) : (
+                          <>
+                            Deposit once → open a state channel session → make unlimited 
+                            instant, gasless predictions off-chain → settle on-chain when done. 
+                            Your funds are always protected by smart contracts.
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -537,17 +615,18 @@ export function DepositModal({ isOpen, onClose, challengeId }: DepositModalProps
 
                 {/* Action button */}
                 <Button
-                  onClick={step === 'input' ? handleApprove : undefined}
+                  onClick={step === 'input' ? handleMainAction : undefined}
                   disabled={step !== 'input' || parsedAmount === 0n}
                   isLoading={step !== 'input'}
                   className="w-full h-14 text-lg"
                 >
                   {step === 'input' && (
                     <>
-                      <span>Deposit & Start</span>
+                      <span>{HAS_CLEARNODE ? 'Start Session' : 'Deposit & Start'}</span>
                       <ArrowRight className="w-5 h-5" />
                     </>
                   )}
+                  {step === 'faucet' && 'Getting tokens...'}
                   {step === 'approve' && 'Approving...'}
                   {step === 'deposit' && 'Depositing...'}
                   {step === 'session' && 'Opening Session...'}

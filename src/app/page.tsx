@@ -11,8 +11,24 @@ import { Button } from '@/components/ui/button';
 import { useAccount } from 'wagmi';
 import type { Challenge } from '@/store/app-store';
 
+// Quick demo: 5-minute challenge
+const DEMO_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
 // Mock data for demo
 const mockChallenges: Challenge[] = [
+  {
+    id: 'demo_5min',
+    title: '⚡ Quick Demo — 5 Min Challenge',
+    description: 'Live demo! Predict which reel wins in 5 minutes. Deposit once, predict instantly (gasless), settle on-chain when time runs out.',
+    theme: 'demo',
+    coverImage: '',
+    startTime: Date.now(),
+    endTime: Date.now() + DEMO_DURATION_MS,
+    totalPool: 10_000_000n, // 10 USDC
+    reelCount: 4,
+    participantCount: 12,
+    status: 'active',
+  },
   {
     id: 'challenge_001',
     title: 'Best Dance Move Challenge',
@@ -21,7 +37,7 @@ const mockChallenges: Challenge[] = [
     coverImage: '',
     startTime: Date.now() - 86400000,
     endTime: Date.now() + 86400000 * 5,
-    totalPool: 125000n * 10n ** 18n,
+    totalPool: 12_500_000n,
     reelCount: 47,
     participantCount: 312,
     status: 'active',
@@ -34,7 +50,7 @@ const mockChallenges: Challenge[] = [
     coverImage: '',
     startTime: Date.now() - 172800000,
     endTime: Date.now() + 86400000 * 3,
-    totalPool: 89500n * 10n ** 18n,
+    totalPool: 8_950_000n,
     reelCount: 34,
     participantCount: 198,
     status: 'active',
@@ -51,20 +67,6 @@ const mockChallenges: Challenge[] = [
     reelCount: 0,
     participantCount: 56,
     status: 'upcoming',
-  },
-  {
-    id: 'challenge_004',
-    title: 'Sunset Time-lapse',
-    description: 'Capture the most beautiful sunset in your area.',
-    theme: 'photography',
-    coverImage: '',
-    startTime: Date.now() - 604800000,
-    endTime: Date.now() - 86400000,
-    totalPool: 234000n * 10n ** 18n,
-    reelCount: 89,
-    participantCount: 521,
-    status: 'settled',
-    winnerReelId: 'reel_winner_001',
   },
 ];
 

@@ -1,3 +1,5 @@
+const path = require('path');
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
@@ -20,12 +22,15 @@ const nextConfig = {
     };
     config.externals.push('pino-pretty', 'encoding');
     
+    // Fix dependency resolution for ox → abitype (npm hoisting issue)
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'abitype': path.resolve(__dirname, 'node_modules/abitype'),
+    };
+
     // Ignore React Native imports in browser
     if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@react-native-async-storage/async-storage': false,
-      };
+      config.resolve.alias['@react-native-async-storage/async-storage'] = false;
     }
     
     return config;

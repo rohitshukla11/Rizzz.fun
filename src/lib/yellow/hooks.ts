@@ -3,17 +3,20 @@
  * Based on official Yellow Network documentation: https://docs.yellow.org/docs/learn/
  *
  * Flow:
- *   1. useYellowConnection  → connect to Clearnode (or enter demo mode)
- *   2. useYellowSession     → create app session after on-chain deposit
- *   3. usePredictions       → instant, gasless predictions off-chain
- *   4. useVoting            → instant, gasless votes off-chain
- *   5. useSettlement        → finalise on-chain when session ends
+ *   1. useYellowSession     → create app session (connects lazily on first use)
+ *   2. usePredictions       → instant, gasless predictions off-chain
+ *   3. useVoting            → instant, gasless votes off-chain
+ *   4. useSettlement        → finalise on-chain when session ends
  *
  * ARCHITECTURE NOTE:
  * Session state is held in MODULE-LEVEL singletons so that every component
  * calling the same hook sees the *same* session / state / predictions.
  * React components subscribe via a tiny pub-sub (_sessionListeners) and
  * re-render when the shared state changes.
+ *
+ * IMPORTANT: The Yellow client is created LAZILY — only when the user
+ * explicitly starts a session (clicks "Start Session"). This prevents
+ * unwanted MetaMask popups on page load.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -37,8 +40,10 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 // One copy per JS runtime, shared by every hook instance.
 // ════════════════════════════════════════════════════
 
+let _sharedClient: YellowNitroliteClient | null = null;
 let _sharedSession: AppSession | null = null;
 let _sharedState: SessionState | null = null;
+let _connectionStatus: ConnectionStatus = 'disconnected';
 const _sessionListeners = new Set<() => void>();
 
 /** Notify every mounted hook to re-render. */
@@ -82,6 +87,19 @@ function _wireClientEvents(client: YellowNitroliteClient) {
   client.on('predictionCancelled', () => _notifySessionListeners());
   client.on('voteCast', () => _notifySessionListeners());
   client.on('settlementReady', () => _notifySessionListeners());
+
+  client.on('connected', () => {
+    _connectionStatus = 'connected';
+    _notifySessionListeners();
+  });
+  client.on('disconnected', () => {
+    _connectionStatus = 'disconnected';
+    _notifySessionListeners();
+  });
+  client.on('error', () => {
+    _connectionStatus = 'error';
+    _notifySessionListeners();
+  });
 }
 
 // ════════════════════════════════════════════════════
@@ -90,92 +108,67 @@ function _wireClientEvents(client: YellowNitroliteClient) {
 
 /**
  * Build a YellowConfig from env vars + wagmi clients.
+ * Per Yellow docs, only CLEARNODE_URL is required — contract addresses
+ * are fetched dynamically from the Clearnode via get_config.
  */
 function buildConfig(walletClient: any, publicClient: any, chainId: number): YellowConfig {
   return {
     clearnodeUrl: process.env.NEXT_PUBLIC_YELLOW_CLEARNODE_URL || undefined,
-    custody: (process.env.NEXT_PUBLIC_YELLOW_CUSTODY_ADDRESS || undefined) as any,
-    adjudicator: (process.env.NEXT_PUBLIC_YELLOW_ADJUDICATOR_ADDRESS || undefined) as any,
-    guestAddress: (process.env.NEXT_PUBLIC_YELLOW_GUEST_ADDRESS || undefined) as any,
-    tokenAddress: (process.env.NEXT_PUBLIC_USDC_TOKEN_ADDRESS || undefined) as any,
     chainId,
-    challengeDuration: 100n,
     publicClient: publicClient ?? undefined,
     walletClient: walletClient ?? undefined,
   };
 }
 
 /**
- * Ensure the singleton YellowNitroliteClient exists.
- * Creates it with demo-mode defaults if needed and wires global events.
+ * Get or create the singleton client. Does NOT connect automatically.
+ * Connection only happens when explicitly requested (e.g., in openSession).
  */
-function ensureClient(walletClient?: any, publicClient?: any, chainId?: number): YellowNitroliteClient {
+function getOrCreateClient(walletClient?: any, publicClient?: any, chainId?: number): YellowNitroliteClient {
+  if (_sharedClient) {
+    // Update wallet clients if they became available after initial creation
+    if (walletClient || publicClient) {
+      _sharedClient.updateClients(publicClient, walletClient);
+    }
+    return _sharedClient;
+  }
+
   const existing = getYellowClientSafe();
   if (existing) {
+    _sharedClient = existing;
     _wireClientEvents(existing);
+    if (walletClient || publicClient) {
+      existing.updateClients(publicClient, walletClient);
+    }
     return existing;
   }
 
   const config = buildConfig(walletClient, publicClient, chainId ?? 11155111);
   const client = initializeYellowClient(config);
-
-  // Wire global event handlers so shared state stays in sync
+  _sharedClient = client;
   _wireClientEvents(client);
-
-  client.connect().catch(() => {});
   return client;
 }
 
-// ════════════════════════════════════════════════════
-// useYellowConnection
-// ════════════════════════════════════════════════════
-
 /**
- * Initialise and connect to the Yellow Network.
- * Auto-connects when a wallet is available.
+ * Connect the singleton client to the Clearnode.
+ * Safe to call multiple times — will no-op if already connected.
  */
-export function useYellowConnection() {
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-  const chainId = useChainId();
-  const [client, setClient] = useState<YellowNitroliteClient | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
-  const [error, setError] = useState<Error | null>(null);
+async function connectClient(client: YellowNitroliteClient): Promise<void> {
+  if (_connectionStatus === 'connected') return;
+  if (_connectionStatus === 'connecting') return;
 
-  useEffect(() => {
-    if (!walletClient) {
-      setStatus('disconnected');
-      return;
-    }
+  _connectionStatus = 'connecting';
+  _notifySessionListeners();
 
-    const config = buildConfig(walletClient, publicClient, chainId);
-    const yellowClient = initializeYellowClient(config);
-    _wireClientEvents(yellowClient);
-
-    yellowClient.on('connected', () => setStatus('connected'));
-    yellowClient.on('disconnected', () => setStatus('disconnected'));
-    yellowClient.on('error', (err: Error) => {
-      setError(err);
-      setStatus('error');
-    });
-
-    setStatus('connecting');
-    yellowClient.connect()
-      .then(() => {
-        setClient(yellowClient);
-        setStatus('connected');
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setStatus('error');
-      });
-
-    return () => {
-      yellowClient.disconnect();
-    };
-  }, [walletClient, publicClient, chainId]);
-
-  return { client, status, error };
+  try {
+    await client.connect();
+    _connectionStatus = 'connected';
+  } catch (err) {
+    console.warn('Yellow Network connect failed (will use local session):', err);
+    _connectionStatus = 'error';
+  }
+  _notifySessionListeners();
 }
 
 // ════════════════════════════════════════════════════
@@ -189,6 +182,9 @@ export function useYellowConnection() {
  * sees the same session. When `openSession()` is called from the deposit
  * modal, the challenge page (and every other consumer) re-renders with
  * the updated session.
+ *
+ * LAZY: The client is only created and connected when openSession() is called.
+ * No MetaMask popups on page load.
  */
 export function useYellowSession() {
   const { data: walletClient } = useWalletClient();
@@ -200,34 +196,60 @@ export function useYellowSession() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Subscribe to shared state changes
+  // Subscribe to shared state changes + restore session from localStorage
   useEffect(() => {
     const listener = () => rerender((n) => n + 1);
     _sessionListeners.add(listener);
 
-    // On mount, check if the singleton client already has a session
-    const client = getYellowClientSafe();
-    if (client) {
-      _wireClientEvents(client);
-      const existing = client.getSession();
-      if (existing && !_sharedSession) {
-        _setSharedSession(existing, existing.state);
+    // On mount, try to restore session from localStorage
+    if (!_sharedSession) {
+      // If client exists, check its in-memory session first
+      if (_sharedClient) {
+        const existing = _sharedClient.getSession();
+        if (existing) {
+          _setSharedSession(existing, existing.state);
+        }
+      }
+
+      // If still no session, try restoring from localStorage
+      if (!_sharedSession) {
+        try {
+          const client = getOrCreateClient(walletClient, publicClient, chainId);
+          const restored = client.restoreSession();
+          if (restored) {
+            _setSharedSession(restored, restored.state);
+          }
+        } catch {
+          // Client creation might fail without wallet — that's OK
+        }
       }
     }
 
     return () => {
       _sessionListeners.delete(listener);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openSession = useCallback(async (depositAmount: bigint, challengeId: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const client = ensureClient(walletClient, publicClient, chainId);
+      // Step 1: Get or create client (generates ephemeral session key)
+      const client = getOrCreateClient(walletClient, publicClient, chainId);
+
+      // Step 2: For sandbox, request faucet tokens for the SESSION KEY address
+      // (must happen BEFORE auth, because we authenticate as the session key)
+      if (client.isSandbox()) {
+        console.log('🚰 Requesting faucet tokens for session key...');
+        await client.requestFaucetTokens();
+      }
+
+      // Step 3: Connect to clearnode and authenticate (zero MetaMask popups)
+      await connectClient(client);
+
+      // Step 4: Create app session (works in both live and local mode)
       const newSession = await client.createAppSession(depositAmount, challengeId);
-      // setSharedSession is also called by the 'sessionCreated' event handler,
-      // but we call it here too for immediate reactivity.
       _setSharedSession(newSession, newSession.state);
       return newSession;
     } catch (err) {
@@ -247,6 +269,7 @@ export function useYellowSession() {
     openSession,
     isLoading,
     error,
+    connectionStatus: _connectionStatus,
     availableBalance: state ? state.balance - state.lockedAmount : 0n,
     lockedInPredictions: state?.lockedAmount ?? 0n,
   };
@@ -273,10 +296,9 @@ export function usePredictions(challengeId?: string) {
 
   // Derive predictions from the shared client state
   const predictions: PredictionState[] = (() => {
-    const client = getYellowClientSafe();
-    if (!client) return [];
-    if (challengeId) return client.getPredictionsForChallenge(challengeId);
-    const s = client.getState();
+    if (!_sharedClient) return [];
+    if (challengeId) return _sharedClient.getPredictionsForChallenge(challengeId);
+    const s = _sharedClient.getState();
     return s ? Array.from(s.predictions.values()) : [];
   })();
 
@@ -284,8 +306,8 @@ export function usePredictions(challengeId?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const client = ensureClient();
-      return await client.makePrediction(targetChallengeId, reelId, amount);
+      if (!_sharedClient) throw new Error('No Yellow client — open a session first');
+      return await _sharedClient.makePrediction(targetChallengeId, reelId, amount);
     } catch (err) {
       setError(err as Error);
       throw err;
@@ -298,8 +320,8 @@ export function usePredictions(challengeId?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const client = ensureClient();
-      return await client.updatePrediction(predictionId, newAmount);
+      if (!_sharedClient) throw new Error('No Yellow client — open a session first');
+      return await _sharedClient.updatePrediction(predictionId, newAmount);
     } catch (err) {
       setError(err as Error);
       throw err;
@@ -312,8 +334,8 @@ export function usePredictions(challengeId?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const client = ensureClient();
-      await client.cancelPrediction(predictionId);
+      if (!_sharedClient) throw new Error('No Yellow client — open a session first');
+      await _sharedClient.cancelPrediction(predictionId);
     } catch (err) {
       setError(err as Error);
       throw err;
@@ -323,9 +345,8 @@ export function usePredictions(challengeId?: string) {
   }, []);
 
   const getTotalForReel = useCallback((targetChallengeId: string, reelId: string): bigint => {
-    const client = getYellowClientSafe();
-    if (!client) return 0n;
-    return client.getTotalPredictionForReel(targetChallengeId, reelId);
+    if (!_sharedClient) return 0n;
+    return _sharedClient.getTotalPredictionForReel(targetChallengeId, reelId);
   }, []);
 
   return { predictions, makePrediction, updatePrediction, cancelPrediction, getTotalForReel, isLoading, error };
@@ -350,9 +371,8 @@ export function useVoting() {
   }, []);
 
   const votes: VoteState[] = (() => {
-    const client = getYellowClientSafe();
-    if (!client) return [];
-    const s = client.getState();
+    if (!_sharedClient) return [];
+    const s = _sharedClient.getState();
     return s ? Array.from(s.votes.values()) : [];
   })();
 
@@ -360,8 +380,8 @@ export function useVoting() {
     setIsLoading(true);
     setError(null);
     try {
-      const client = ensureClient();
-      return await client.vote(challengeId, reelId);
+      if (!_sharedClient) throw new Error('No Yellow client — open a session first');
+      return await _sharedClient.vote(challengeId, reelId);
     } catch (err) {
       setError(err as Error);
       throw err;
@@ -392,8 +412,7 @@ export function useSettlement() {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const client = getYellowClientSafe();
-    if (!client) return;
+    if (!_sharedClient) return;
 
     const handleSettlement = (data: { stateHash: string; signatures: string[]; finalState: SessionState }) => {
       setSettlementData(data);
@@ -401,12 +420,12 @@ export function useSettlement() {
     };
     const handleSettled = () => { setIsSettled(true); setIsSettling(false); };
 
-    client.on('settlementReady', handleSettlement);
-    client.on('sessionSettled', handleSettled);
+    _sharedClient.on('settlementReady', handleSettlement);
+    _sharedClient.on('sessionSettled', handleSettled);
 
     return () => {
-      client.off('settlementReady', handleSettlement);
-      client.off('sessionSettled', handleSettled);
+      _sharedClient?.off('settlementReady', handleSettlement);
+      _sharedClient?.off('sessionSettled', handleSettled);
     };
   }, []);
 
@@ -414,8 +433,8 @@ export function useSettlement() {
     setIsSettling(true);
     setError(null);
     try {
-      const client = ensureClient();
-      const data = await client.requestSettlement(challengeId);
+      if (!_sharedClient) throw new Error('No Yellow client — open a session first');
+      const data = await _sharedClient.requestSettlement(challengeId);
       setSettlementData(data);
       return data;
     } catch (err) {

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Users, Coins, Trophy, Zap, Play } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Coins, Trophy, Zap, Play, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAccount } from 'wagmi';
@@ -12,23 +12,57 @@ import { DepositModal } from '@/components/wallet/deposit-modal';
 import { ConnectButton } from '@/components/wallet/connect-button';
 import { Button } from '@/components/ui/button';
 import { useAppStore, type Reel, type Challenge } from '@/store/app-store';
-import { useYellowSession } from '@/lib/yellow';
+import { useYellowSession, usePredictions, useSettlement } from '@/lib/yellow';
 import { cn, formatTokenAmount, formatTimeRemaining } from '@/lib/utils';
 
-// Mock data — realistic small USDC pools for demo
-const mockChallenge: Challenge = {
-  id: 'challenge_001',
-  title: 'Best Dance Move Challenge',
-  description: 'Show us your best dance moves! The most creative and entertaining dancer wins the grand prize pool.',
-  theme: 'dance',
-  coverImage: '',
-  startTime: Date.now() - 86400000,
-  endTime: Date.now() + 86400000 * 5,
-  totalPool: 12_500_000n, // 12.50 USDC (6 decimals)
-  reelCount: 47,
-  participantCount: 312,
-  status: 'active',
-};
+const DEMO_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// ── Challenge + Reel data factories ──────────────
+
+function getDemoChallenge(): Challenge {
+  // Read persisted start time or create a new one
+  let startTime: number;
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('rizzz-demo-start');
+    if (stored) {
+      startTime = parseInt(stored, 10);
+    } else {
+      startTime = Date.now();
+      localStorage.setItem('rizzz-demo-start', startTime.toString());
+    }
+  } else {
+    startTime = Date.now();
+  }
+  return {
+    id: 'demo_5min',
+    title: '⚡ Quick Demo — 5 Min Challenge',
+    description: 'Predict which reel wins! Deposit once → predict instantly (gasless) → settle when time runs out. Powered by Yellow Network.',
+    theme: 'demo',
+    coverImage: '',
+    startTime,
+    endTime: startTime + DEMO_DURATION_MS,
+    totalPool: 10_000_000n,
+    reelCount: 4,
+    participantCount: 12,
+    status: 'active',
+  };
+}
+
+function getDefaultChallenge(): Challenge {
+  return {
+    id: 'challenge_001',
+    title: 'Best Dance Move Challenge',
+    description: 'Show us your best dance moves! The most creative and entertaining dancer wins the grand prize pool.',
+    theme: 'dance',
+    coverImage: '',
+    startTime: Date.now() - 86400000,
+    endTime: Date.now() + 86400000 * 5,
+    totalPool: 12_500_000n,
+    reelCount: 47,
+    participantCount: 312,
+    status: 'active',
+  };
+}
 
 const mockReels: Reel[] = [
   {
@@ -40,7 +74,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Crazy moonwalk combo 🌙✨',
     votes: 2453,
-    predictionPool: 4_500_000n, // 4.50 USDC
+    predictionPool: 4_500_000n,
     createdAt: Date.now() - 86400000,
   },
   {
@@ -52,7 +86,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'When the beat drops 🔥',
     votes: 1897,
-    predictionPool: 3_200_000n, // 3.20 USDC
+    predictionPool: 3_200_000n,
     createdAt: Date.now() - 72000000,
   },
   {
@@ -64,7 +98,7 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Robot dance perfection 🤖',
     votes: 1654,
-    predictionPool: 2_800_000n, // 2.80 USDC
+    predictionPool: 2_800_000n,
     createdAt: Date.now() - 58000000,
   },
   {
@@ -76,21 +110,136 @@ const mockReels: Reel[] = [
     thumbnailUrl: '',
     title: 'Flexibility goals 💪',
     votes: 1432,
-    predictionPool: 2_000_000n, // 2.00 USDC
+    predictionPool: 2_000_000n,
     createdAt: Date.now() - 43000000,
   },
 ];
 
 type ViewMode = 'grid' | 'feed';
 
+// ── Demo results overlay ─────────────────────────
+
+function DemoResultsOverlay({
+  challenge,
+  reels,
+  predictions,
+  onRestart,
+}: {
+  challenge: Challenge;
+  reels: Reel[];
+  predictions: any[];
+  onRestart: () => void;
+}) {
+  // Pick a random "winner" (seeded by challenge start time for consistency)
+  const winnerIdx = Math.abs(challenge.startTime) % reels.length;
+  const winner = reels[winnerIdx];
+
+  // Calculate user's outcome
+  const userBetOnWinner = predictions.some(p => p.reelId === winner?.id);
+  const userTotalStaked = predictions.reduce((s: bigint, p: any) => s + BigInt(p.amount ?? 0), 0n);
+  const payout = userBetOnWinner ? (userTotalStaked * 180n) / 100n : 0n; // 1.8x payout
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="bg-reel-surface rounded-2xl border border-reel-border p-6 max-w-md w-full"
+      >
+        <div className="text-center mb-6">
+          <Trophy className="w-16 h-16 text-reel-warning mx-auto mb-3" />
+          <h2 className="font-display text-2xl font-bold text-white">Challenge Complete!</h2>
+          <p className="text-reel-muted text-sm mt-1">Settlement finalised on-chain</p>
+        </div>
+
+        {/* Winner */}
+        <div className="bg-reel-card rounded-xl p-4 mb-4 border border-reel-warning/30">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-reel-warning text-black flex items-center justify-center text-sm font-bold">🏆</div>
+            <div>
+              <p className="text-white font-medium">@{winner?.creatorName || 'Unknown'}</p>
+              <p className="text-reel-muted text-xs">{winner?.title}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-sm mt-2">
+            <span className="text-reel-muted">Winning pool</span>
+            <span className="text-reel-warning font-mono">{formatTokenAmount(winner?.predictionPool ?? 0n, 6)} USDC</span>
+          </div>
+        </div>
+
+        {/* User's result */}
+        <div className={cn(
+          'rounded-xl p-4 mb-4 border',
+          userBetOnWinner
+            ? 'bg-reel-success/10 border-reel-success/30'
+            : 'bg-reel-error/10 border-reel-error/30',
+        )}>
+          <div className="flex items-center gap-2 mb-2">
+            {userBetOnWinner ? (
+              <CheckCircle className="w-5 h-5 text-reel-success" />
+            ) : (
+              <XCircle className="w-5 h-5 text-reel-error" />
+            )}
+            <span className={cn(
+              'font-medium',
+              userBetOnWinner ? 'text-reel-success' : 'text-reel-error',
+            )}>
+              {predictions.length === 0
+                ? 'No predictions placed'
+                : userBetOnWinner
+                  ? 'You predicted correctly! 🎉'
+                  : 'Better luck next time'}
+            </span>
+          </div>
+          {predictions.length > 0 && (
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-reel-muted">Your stake</span>
+                <span className="text-white font-mono">{formatTokenAmount(userTotalStaked, 6)} USDC</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-reel-muted">Payout</span>
+                <span className={cn('font-mono', userBetOnWinner ? 'text-reel-success' : 'text-reel-error')}>
+                  {userBetOnWinner ? '+' : ''}{formatTokenAmount(payout, 6)} USDC
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Settlement info */}
+        <div className="bg-reel-card/50 rounded-lg p-3 mb-6 text-xs text-reel-muted">
+          <div className="flex items-center gap-1 mb-1">
+            <Zap className="w-3 h-3 text-reel-warning" />
+            <span className="text-reel-warning font-medium">Yellow Network Settlement</span>
+          </div>
+          <p>Final state signed by all parties and submitted on-chain. Your balance is updated in the custody contract.</p>
+        </div>
+
+        <Button onClick={onRestart} className="w-full">
+          🔄 Start New 5-Min Challenge
+        </Button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function ChallengePage() {
   const params = useParams();
   const challengeId = params.id as string;
+  const isDemo = challengeId === 'demo_5min';
   const { isConnected } = useAccount();
   
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedReel, setSelectedReel] = useState<Reel | null>(null);
   const [showPredictionPanel, setShowPredictionPanel] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<string>('');
   
   const { 
     isDepositModalOpen, 
@@ -102,21 +251,62 @@ export default function ChallengePage() {
   } = useAppStore();
   
   const { session } = useYellowSession();
+  const { predictions } = usePredictions(challengeId);
+  const { requestSettlement } = useSettlement();
+
+  // Build challenge data based on route
+  const mockChallenge = useMemo(() => {
+    return isDemo ? getDemoChallenge() : getDefaultChallenge();
+  }, [isDemo]);
 
   // Load challenge data
   useEffect(() => {
     setActiveChallenge(mockChallenge);
-    setReels(mockReels);
-  }, [setActiveChallenge, setReels]);
+    setReels(mockReels.map(r => ({ ...r, challengeId })));
+  }, [setActiveChallenge, setReels, mockChallenge, challengeId]);
+
+  // Demo countdown timer
+  useEffect(() => {
+    if (!isDemo) return;
+    const endTime = mockChallenge.endTime;
+
+    const tick = () => {
+      const remaining = endTime - Date.now();
+      if (remaining <= 0) {
+        setTimeLeft('00:00');
+        // Trigger settlement and show results
+        if (!showResults) {
+          requestSettlement(challengeId).catch(console.warn);
+          setShowResults(true);
+        }
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setTimeLeft(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isDemo, mockChallenge.endTime, showResults, challengeId, requestSettlement]);
+
+  const handleRestartDemo = useCallback(() => {
+    // Reset demo timer
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('rizzz-demo-start');
+      localStorage.removeItem('rizzz-session');
+    }
+    setShowResults(false);
+    window.location.reload();
+  }, []);
 
   const handlePredictClick = useCallback((reel: Reel) => {
     if (!isConnected) {
-      // Prompt to connect wallet
       return;
     }
     
     if (!session) {
-      // Need to deposit first
       setDepositModalOpen(true);
       return;
     }
@@ -134,6 +324,16 @@ export default function ChallengePage() {
 
   return (
     <div className="min-h-screen bg-reel-bg">
+      {/* Demo results overlay */}
+      {showResults && (
+        <DemoResultsOverlay
+          challenge={challenge}
+          reels={displayReels}
+          predictions={predictions}
+          onRestart={handleRestartDemo}
+        />
+      )}
+
       {viewMode === 'grid' ? (
         <>
           {/* Header */}
@@ -150,7 +350,22 @@ export default function ChallengePage() {
                   {challenge.title}
                 </h1>
               </div>
-              <ConnectButton />
+              <div className="flex items-center gap-2">
+                {isDemo && timeLeft && (
+                  <div className={cn(
+                    'px-3 py-1.5 rounded-full font-mono text-sm font-bold flex items-center gap-1.5',
+                    timeLeft === '00:00'
+                      ? 'bg-reel-error/20 text-reel-error'
+                      : parseInt(timeLeft) <= 1
+                        ? 'bg-reel-warning/20 text-reel-warning animate-pulse'
+                        : 'bg-reel-primary/20 text-reel-primary',
+                  )}>
+                    <Clock className="w-3.5 h-3.5" />
+                    {timeLeft}
+                  </div>
+                )}
+                <ConnectButton />
+              </div>
             </div>
           </header>
 
@@ -168,7 +383,7 @@ export default function ChallengePage() {
                 <StatBadge 
                   icon={<Clock className="w-4 h-4" />}
                   label="Ends in"
-                  value={formatTimeRemaining(challenge.endTime)}
+                  value={isDemo && timeLeft ? timeLeft : formatTimeRemaining(challenge.endTime)}
                   variant="warning"
                 />
                 <StatBadge 

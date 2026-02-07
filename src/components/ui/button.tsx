@@ -100,7 +100,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     // Use motion.button on client for animations
     return (
       <motion.button
-        {...buttonProps}
+        {...(buttonProps as any)}
         whileTap={{ scale: 0.97 }}
         transition={{ duration: 0.1 }}
       >
