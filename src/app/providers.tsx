@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { sepolia, arbitrum, base } from 'wagmi/chains';
+import { mainnet, sepolia, arbitrum, base } from 'wagmi/chains';
 import { injected, walletConnect } from 'wagmi/connectors';
 import { fallback } from 'viem';
 import { useState, useMemo, type ReactNode } from 'react';
@@ -54,11 +54,19 @@ function getWagmiConfig() {
   ]);
 
   wagmiConfigInstance = createConfig({
-    chains: [sepolia, arbitrum, base],
+    chains: [mainnet, sepolia, arbitrum, base],
     connectors,
     // Disable automatic block polling — dramatically reduces RPC calls
     pollingInterval: 30_000, // 30s instead of default 4s
     transports: {
+      // Mainnet — read-only for ENS resolution (no gas needed for reads)
+      // Using multiple reliable RPCs for ENS resolution
+      [mainnet.id]: fallback([
+        http('https://eth.llamarpc.com', { retryCount: 2, timeout: 10000 }),
+        http('https://rpc.ankr.com/eth', { retryCount: 2, timeout: 10000 }),
+        http('https://ethereum-rpc.publicnode.com', { retryCount: 2, timeout: 10000 }),
+        http('https://cloudflare-eth.com', { retryCount: 1, timeout: 8000 }),
+      ]),
       [sepolia.id]: sepoliaTransport,
       [arbitrum.id]: arbitrumRpcUrl ? http(arbitrumRpcUrl) : http(),
       [base.id]: baseRpcUrl ? http(baseRpcUrl) : http(),

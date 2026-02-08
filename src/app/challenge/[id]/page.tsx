@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore, type Reel, type Challenge } from '@/store/app-store';
 import { useYellowSession, usePredictions, useSettlement } from '@/lib/yellow';
 import { cn, formatTokenAmount, formatTimeRemaining } from '@/lib/utils';
+import { ENSAvatar, ENSName } from '@/components/ens/ens-identity';
 import {
   getCurrentMultiplierInfo,
   calculateTimeWeightedPayouts,
@@ -91,11 +92,14 @@ function getDefaultChallenge(): Challenge {
   };
 }
 
+// Real ENS-named addresses for demo (these have ENS names on mainnet)
+// Using well-known addresses that have ENS names registered
 const mockReels: Reel[] = [
   {
     id: 'reel_001',
     challengeId: 'challenge_001',
-    creatorAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    // vitalik.eth - well-known ENS name
+    creatorAddress: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
     creatorName: 'DanceMaster',
     videoUrl: DEMO_VIDEOS[0],
     thumbnailUrl: REEL_THUMBNAILS[0],
@@ -107,7 +111,8 @@ const mockReels: Reel[] = [
   {
     id: 'reel_002',
     challengeId: 'challenge_001',
-    creatorAddress: '0xabcdef1234567890abcdef1234567890abcdef12',
+    // brantly.eth - well-known ENS name
+    creatorAddress: '0x983110309620D911731Ac0932219af06091b6744',
     creatorName: 'GrooveQueen',
     videoUrl: DEMO_VIDEOS[1],
     thumbnailUrl: REEL_THUMBNAILS[1],
@@ -119,7 +124,8 @@ const mockReels: Reel[] = [
   {
     id: 'reel_003',
     challengeId: 'challenge_001',
-    creatorAddress: '0x7890abcdef1234567890abcdef1234567890abcd',
+    // nick.eth - well-known ENS name
+    creatorAddress: '0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5',
     creatorName: 'PopLockDrop',
     videoUrl: DEMO_VIDEOS[2],
     thumbnailUrl: REEL_THUMBNAILS[2],
@@ -131,7 +137,8 @@ const mockReels: Reel[] = [
   {
     id: 'reel_004',
     challengeId: 'challenge_001',
-    creatorAddress: '0xdef1234567890abcdef1234567890abcdef123456',
+    // alisha.eth - well-known ENS name
+    creatorAddress: '0x4f3a120E72C76c22ae802D129F599BFDbc31cb81',
     creatorName: 'FlexKing',
     videoUrl: DEMO_VIDEOS[3],
     thumbnailUrl: REEL_THUMBNAILS[3],
@@ -333,14 +340,14 @@ function VideoReelCard({
 
       {/* Bottom info */}
       <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-        {/* Creator info */}
+        {/* Creator info — ENS-powered */}
         <div className="flex items-center gap-2 mb-1.5">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent flex items-center justify-center">
-            <span className="text-[10px] font-bold text-white">
-              {reel.creatorName.charAt(0)}
-            </span>
-          </div>
-          <span className="text-white text-xs font-medium truncate">@{reel.creatorName}</span>
+          <ENSAvatar address={reel.creatorAddress} size="xs" />
+          <ENSName
+            address={reel.creatorAddress}
+            chars={4}
+            className="text-white text-xs font-medium truncate"
+          />
         </div>
         <p className="text-white/60 text-[11px] truncate mb-1.5">{reel.title}</p>
 
@@ -458,7 +465,13 @@ function DemoResultsOverlay({
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-reel-warning/20 flex items-center justify-center text-2xl">🏆</div>
             <div className="flex-1">
-              <p className="text-white font-semibold">@{winner?.creatorName || 'Unknown'}</p>
+              <p className="text-white font-semibold">
+                {winner?.creatorAddress ? (
+                  <ENSName address={winner.creatorAddress} className="text-white" />
+                ) : (
+                  '@Unknown'
+                )}
+              </p>
               <p className="text-reel-muted text-xs">{winner?.title}</p>
             </div>
             <div className="text-right">

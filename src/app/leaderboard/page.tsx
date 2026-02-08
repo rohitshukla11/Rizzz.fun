@@ -6,15 +6,16 @@ import { Trophy, Medal, Crown, TrendingUp, Flame } from 'lucide-react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { ConnectButton } from '@/components/wallet/connect-button';
 import { cn, formatTokenAmount, truncateAddress } from '@/lib/utils';
+import { ENSName, ENSAvatar } from '@/components/ens/ens-identity';
 
-// Mock leaderboard data
+// Mock leaderboard data with real ENS-named addresses
 const mockLeaderboard = [
-  { rank: 1, address: '0x1234567890abcdef1234567890abcdef12345678', username: 'PredictionKing', winRate: 78.5, totalEarnings: 125000n * 10n ** 18n, streak: 12 },
-  { rank: 2, address: '0xabcdef1234567890abcdef1234567890abcdef12', username: 'ReelMaster', winRate: 72.3, totalEarnings: 98000n * 10n ** 18n, streak: 8 },
-  { rank: 3, address: '0x7890abcdef1234567890abcdef1234567890abcd', username: 'VoteWizard', winRate: 68.9, totalEarnings: 87500n * 10n ** 18n, streak: 6 },
-  { rank: 4, address: '0xdef1234567890abcdef1234567890abcdef123456', username: 'CryptoSeer', winRate: 65.2, totalEarnings: 72000n * 10n ** 18n, streak: 5 },
-  { rank: 5, address: '0x567890abcdef1234567890abcdef1234567890ab', username: 'TrendHunter', winRate: 62.8, totalEarnings: 65000n * 10n ** 18n, streak: 4 },
-  { rank: 6, address: '0x234567890abcdef1234567890abcdef12345678cd', username: 'ReelPro', winRate: 60.1, totalEarnings: 58000n * 10n ** 18n, streak: 3 },
+  { rank: 1, address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', username: 'PredictionKing', winRate: 78.5, totalEarnings: 125000n * 10n ** 18n, streak: 12 }, // vitalik.eth
+  { rank: 2, address: '0x983110309620D911731Ac0932219af06091b6744', username: 'ReelMaster', winRate: 72.3, totalEarnings: 98000n * 10n ** 18n, streak: 8 }, // brantly.eth
+  { rank: 3, address: '0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5', username: 'VoteWizard', winRate: 68.9, totalEarnings: 87500n * 10n ** 18n, streak: 6 }, // nick.eth
+  { rank: 4, address: '0x4f3a120E72C76c22ae802D129F599BFDbc31cb81', username: 'CryptoSeer', winRate: 65.2, totalEarnings: 72000n * 10n ** 18n, streak: 5 }, // alisha.eth
+  { rank: 5, address: '0x8ba1f109551bD432803012645Hac136c22C9E8', username: 'TrendHunter', winRate: 62.8, totalEarnings: 65000n * 10n ** 18n, streak: 4 },
+  { rank: 6, address: '0x2f587c2A9c4E0B5a3bA3d5d5f5f5f5f5f5f5f5f5f', username: 'ReelPro', winRate: 60.1, totalEarnings: 58000n * 10n ** 18n, streak: 3 },
   { rank: 7, address: '0x890abcdef1234567890abcdef1234567890abcdef', username: 'PredictNinja', winRate: 58.4, totalEarnings: 52000n * 10n ** 18n, streak: 2 },
   { rank: 8, address: '0xcdef1234567890abcdef1234567890abcdef1234', username: 'VoteKing', winRate: 55.7, totalEarnings: 45000n * 10n ** 18n, streak: 1 },
 ];
@@ -93,15 +94,17 @@ export default function LeaderboardPage() {
             transition={{ delay: 0.1 }}
             className="flex flex-col items-center"
           >
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center mb-2">
-              <span className="text-lg font-bold text-white">
-                {mockLeaderboard[1].username.slice(0, 2)}
-              </span>
-            </div>
+            <ENSAvatar 
+              address={mockLeaderboard[1].address} 
+              size="lg"
+              className="mb-2 ring-2 ring-gray-400"
+            />
             <Medal className="w-5 h-5 text-gray-300 mb-1" />
-            <p className="text-xs text-white font-medium truncate max-w-[80px]">
-              {mockLeaderboard[1].username}
-            </p>
+            <ENSName 
+              address={mockLeaderboard[1].address} 
+              className="text-xs text-white font-medium truncate max-w-[80px]"
+              chars={6}
+            />
             <p className="text-xs text-reel-muted">
               {formatTokenAmount(mockLeaderboard[1].totalEarnings)}
             </p>
@@ -117,14 +120,16 @@ export default function LeaderboardPage() {
             className="flex flex-col items-center"
           >
             <Crown className="w-8 h-8 text-reel-warning mb-1" />
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-reel-warning to-amber-600 flex items-center justify-center mb-2 ring-4 ring-reel-warning/30">
-              <span className="text-xl font-bold text-white">
-                {mockLeaderboard[0].username.slice(0, 2)}
-              </span>
-            </div>
-            <p className="text-sm text-white font-medium truncate max-w-[100px]">
-              {mockLeaderboard[0].username}
-            </p>
+            <ENSAvatar 
+              address={mockLeaderboard[0].address} 
+              size="lg"
+              className="mb-2 ring-4 ring-reel-warning/30"
+            />
+            <ENSName 
+              address={mockLeaderboard[0].address} 
+              className="text-sm text-white font-medium truncate max-w-[100px]"
+              chars={6}
+            />
             <p className="text-xs text-reel-muted">
               {formatTokenAmount(mockLeaderboard[0].totalEarnings)}
             </p>
@@ -140,15 +145,17 @@ export default function LeaderboardPage() {
             transition={{ delay: 0.2 }}
             className="flex flex-col items-center"
           >
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center mb-2">
-              <span className="text-lg font-bold text-white">
-                {mockLeaderboard[2].username.slice(0, 2)}
-              </span>
-            </div>
+            <ENSAvatar 
+              address={mockLeaderboard[2].address} 
+              size="md"
+              className="mb-2 ring-2 ring-amber-600"
+            />
             <Medal className="w-5 h-5 text-amber-600 mb-1" />
-            <p className="text-xs text-white font-medium truncate max-w-[80px]">
-              {mockLeaderboard[2].username}
-            </p>
+            <ENSName 
+              address={mockLeaderboard[2].address} 
+              className="text-xs text-white font-medium truncate max-w-[80px]"
+              chars={6}
+            />
             <p className="text-xs text-reel-muted">
               {formatTokenAmount(mockLeaderboard[2].totalEarnings)}
             </p>
@@ -181,24 +188,30 @@ export default function LeaderboardPage() {
                 )}
               </div>
 
-              {/* Avatar */}
-              <div className={cn(
-                'w-10 h-10 rounded-full flex items-center justify-center',
-                user.rank === 1 ? 'bg-gradient-to-br from-reel-warning to-amber-600' :
-                user.rank === 2 ? 'bg-gradient-to-br from-gray-400 to-gray-500' :
-                user.rank === 3 ? 'bg-gradient-to-br from-amber-600 to-amber-700' :
-                'bg-reel-surface'
-              )}>
-                <span className="text-sm font-bold text-white">
-                  {user.username.slice(0, 2)}
-                </span>
-              </div>
+              {/* Avatar - using ENS */}
+              <ENSAvatar 
+                address={user.address} 
+                size="md"
+                className={cn(
+                  user.rank === 1 ? 'ring-2 ring-reel-warning' :
+                  user.rank === 2 ? 'ring-2 ring-gray-400' :
+                  user.rank === 3 ? 'ring-2 ring-amber-600' :
+                  ''
+                )}
+              />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-white truncate">{user.username}</p>
+                <div className="flex items-center gap-2">
+                  <ENSName 
+                    address={user.address} 
+                    className="font-medium text-white truncate"
+                    chars={4}
+                  />
+                  <span className="text-xs text-reel-muted">({user.username})</span>
+                </div>
                 <p className="text-xs text-reel-muted">
-                  {truncateAddress(user.address)} • {user.winRate}% win rate
+                  {user.winRate}% win rate
                 </p>
               </div>
 

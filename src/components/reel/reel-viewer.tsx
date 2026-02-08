@@ -6,6 +6,7 @@ import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share2, Coins, Tre
 import { cn, formatTokenAmount, truncateAddress, calculatePercentage, formatPercentage } from '@/lib/utils';
 import { useAppStore, type Reel } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
+import { ENSAvatar, ENSName } from '@/components/ens/ens-identity';
 
 interface ReelViewerProps {
   reels: Reel[];
@@ -155,20 +156,14 @@ export function ReelViewer({ reels, initialIndex = 0, onPredictClick }: ReelView
 
       {/* Right side actions */}
       <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5">
-        {/* Creator avatar */}
+        {/* Creator avatar — ENS-powered */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.2 }}
           className="relative"
         >
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent p-0.5">
-            <div className="w-full h-full rounded-full bg-reel-surface flex items-center justify-center">
-              <span className="text-lg font-bold">
-                {currentReel.creatorName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          </div>
+          <ENSAvatar address={currentReel.creatorAddress} size="md" className="ring-2 ring-reel-primary" />
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 bg-reel-primary rounded-full flex items-center justify-center border-2 border-black">
             <span className="text-xs">+</span>
           </div>
@@ -226,12 +221,14 @@ export function ReelViewer({ reels, initialIndex = 0, onPredictClick }: ReelView
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          {/* Creator name */}
+          {/* Creator name — ENS-powered */}
           <p className="text-white font-semibold flex items-center gap-2">
-            @{currentReel.creatorName}
-            <span className="text-xs text-reel-muted font-normal">
-              {truncateAddress(currentReel.creatorAddress)}
-            </span>
+            <ENSName
+              address={currentReel.creatorAddress}
+              withAvatar
+              avatarSize="xs"
+              className="text-white"
+            />
           </p>
 
           {/* Title */}

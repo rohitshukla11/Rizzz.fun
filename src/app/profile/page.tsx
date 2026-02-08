@@ -12,6 +12,9 @@ import { ConnectButton } from '@/components/wallet/connect-button';
 import { Button } from '@/components/ui/button';
 import { useYellowSession } from '@/lib/yellow';
 import { cn, formatTokenAmount, truncateAddress } from '@/lib/utils';
+import { useENSIdentity, useENSSocialProfile, formatENSOrAddress } from '@/lib/ens';
+import { ENSAvatar } from '@/components/ens/ens-identity';
+import { PredictionPassportEditor } from '@/components/ens/prediction-passport';
 
 // Mock stats
 const mockStats = {
@@ -30,12 +33,15 @@ const mockHistory = [
 
 export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'predictions' | 'earnings'>('predictions');
+  const [activeTab, setActiveTab] = useState<'predictions' | 'earnings' | 'passport'>('passport');
   
   const { address, isConnected } = useAccount();
-  // Removed useBalance — it polls the RPC and triggers rate limits on free endpoints
   const { disconnect } = useDisconnect();
   const { session } = useYellowSession();
+
+  // ENS hooks
+  const { name: ensName, avatar: ensAvatar, isLoading: ensLoading } = useENSIdentity(address);
+  const social = useENSSocialProfile(ensName);
 
   const handleCopy = () => {
     if (address) {
@@ -68,7 +74,7 @@ export default function ProfilePage() {
               Connect Your Wallet
             </h2>
             <p className="text-reel-muted mb-6 max-w-xs">
-              Connect your wallet to view your predictions, earnings, and stats.
+              Connect your wallet to view your predictions, earnings, and ENS profile.
             </p>
             <ConnectButton />
           </motion.div>
@@ -91,7 +97,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      {/* Profile card */}
+      {/* Profile card — with ENS name + avatar */}
       <section className="px-4 py-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -99,29 +105,97 @@ export default function ProfilePage() {
           className="rounded-2xl bg-reel-card border border-reel-border p-5"
         >
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">
-                {address?.slice(2, 4).toUpperCase()}
-              </span>
-            </div>
+            <ENSAvatar address={address} size="lg" />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-white">
-                  {truncateAddress(address || '', 6)}
-                </span>
-                <button onClick={handleCopy} className="p-1">
-                  {copied ? (
-                    <Check className="w-4 h-4 text-reel-success" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-reel-muted" />
-                  )}
-                </button>
-              </div>
-              <p className="text-sm text-reel-muted">
-                Sepolia
-              </p>
+              {ensName ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-lg">
+                      {ensName}
+                    </span>
+                    <div className="px-1.5 py-0.5 bg-reel-primary/20 rounded text-[10px] text-reel-primary font-bold">
+                      ENS
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono text-reel-muted text-sm">
+                      {truncateAddress(address || '', 6)}
+                    </span>
+                    <button onClick={handleCopy} className="p-0.5">
+                      {copied ? (
+                        <Check className="w-3.5 h-3.5 text-reel-success" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-reel-muted" />
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-white">
+                      {truncateAddress(address || '', 6)}
+                    </span>
+                    <button onClick={handleCopy} className="p-1">
+                      {copied ? (
+                        <Check className="w-4 h-4 text-reel-success" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-reel-muted" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-sm text-reel-muted">
+                    Sepolia
+                  </p>
+                  {/* Prompt to get ENS name */}
+                  <a
+                    href="https://app.ens.domains"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs text-reel-primary hover:underline"
+                  >
+                    Get an ENS name → <ExternalLink className="w-3 h-3" />
+                  </a>
+                </>
+              )}
             </div>
           </div>
+
+          {/* Social links from ENS text records */}
+          {ensName && (social.twitter || social.github || social.url) && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-reel-border">
+              {social.twitter && (
+                <a
+                  href={`https://twitter.com/${social.twitter}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-lg bg-reel-surface text-xs text-reel-muted hover:text-white transition-colors"
+                >
+                  𝕏 @{social.twitter}
+                </a>
+              )}
+              {social.github && (
+                <a
+                  href={`https://github.com/${social.github}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-lg bg-reel-surface text-xs text-reel-muted hover:text-white transition-colors"
+                >
+                  🐙 {social.github}
+                </a>
+              )}
+              {social.url && (
+                <a
+                  href={social.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-lg bg-reel-surface text-xs text-reel-muted hover:text-white transition-colors"
+                >
+                  🌐 {social.url}
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Session status */}
           {session && (
@@ -168,9 +242,20 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* Tabs */}
+      {/* Tabs — added Passport tab */}
       <section className="px-4">
         <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setActiveTab('passport')}
+            className={cn(
+              'flex-1 py-3 rounded-xl text-sm font-medium transition-all',
+              activeTab === 'passport'
+                ? 'bg-reel-primary text-white'
+                : 'bg-reel-card text-reel-muted'
+            )}
+          >
+            🛂 Passport
+          </button>
           <button
             onClick={() => setActiveTab('predictions')}
             className={cn(
@@ -180,7 +265,7 @@ export default function ProfilePage() {
                 : 'bg-reel-card text-reel-muted'
             )}
           >
-            <History className="w-4 h-4 inline-block mr-2" />
+            <History className="w-4 h-4 inline-block mr-1" />
             History
           </button>
           <button
@@ -192,44 +277,95 @@ export default function ProfilePage() {
                 : 'bg-reel-card text-reel-muted'
             )}
           >
-            <Wallet className="w-4 h-4 inline-block mr-2" />
-            Earnings
+            <Wallet className="w-4 h-4 inline-block mr-1" />
+            Earn
           </button>
         </div>
 
-        {/* History list */}
-        <div className="space-y-3">
-          {mockHistory.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="p-4 rounded-xl bg-reel-card border border-reel-border"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-white">{item.challenge}</p>
-                  <p className="text-sm text-reel-muted">{item.reel}</p>
-                </div>
-                <div className="text-right">
-                  <p className={cn(
-                    'font-mono font-medium',
-                    item.won ? 'text-reel-success' : 'text-reel-muted'
-                  )}>
-                    {item.won ? '+' : '-'}{formatTokenAmount(item.won ? item.earnings : item.amount)}
-                  </p>
-                  <p className={cn(
-                    'text-xs',
-                    item.won ? 'text-reel-success' : 'text-reel-muted'
-                  )}>
-                    {item.won ? 'Won' : 'Lost'}
-                  </p>
-                </div>
+        {/* Passport tab */}
+        {activeTab === 'passport' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <PredictionPassportEditor />
+
+            {/* Info card about ENS */}
+            <div className="mt-4 p-4 rounded-xl bg-reel-card border border-reel-border">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
+                🔗 What is a Prediction Passport?
+              </h4>
+              <p className="text-xs text-reel-muted leading-relaxed">
+                Your Prediction Passport stores your trading preferences as ENS text records 
+                on Ethereum. This makes them <strong className="text-white">portable</strong> — 
+                any prediction market that reads ENS can load your profile automatically.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="px-2 py-0.5 bg-reel-surface rounded text-[10px] text-reel-muted">
+                  Portable across platforms
+                </span>
+                <span className="px-2 py-0.5 bg-reel-surface rounded text-[10px] text-reel-muted">
+                  Decentralized identity
+                </span>
+                <span className="px-2 py-0.5 bg-reel-surface rounded text-[10px] text-reel-muted">
+                  On-chain preferences
+                </span>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* History tab */}
+        {activeTab === 'predictions' && (
+          <div className="space-y-3">
+            {mockHistory.map((item, index) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="p-4 rounded-xl bg-reel-card border border-reel-border"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-white">{item.challenge}</p>
+                    <p className="text-sm text-reel-muted">{item.reel}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn(
+                      'font-mono font-medium',
+                      item.won ? 'text-reel-success' : 'text-reel-muted'
+                    )}>
+                      {item.won ? '+' : '-'}{formatTokenAmount(item.won ? item.earnings : item.amount)}
+                    </p>
+                    <p className={cn(
+                      'text-xs',
+                      item.won ? 'text-reel-success' : 'text-reel-muted'
+                    )}>
+                      {item.won ? 'Won' : 'Lost'}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* Earnings tab */}
+        {activeTab === 'earnings' && (
+          <div className="space-y-3">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-6 rounded-xl bg-reel-card border border-reel-border text-center"
+            >
+              <p className="text-reel-muted text-sm mb-2">Total Earnings</p>
+              <p className="text-3xl font-display font-bold text-white">
+                {formatTokenAmount(mockStats.totalEarnings)} <span className="text-sm text-reel-muted">USDC</span>
+              </p>
             </motion.div>
-          ))}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* Disconnect button */}

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { cn, formatTokenAmount, parseTokenAmount, calculatePercentage, formatPercentage } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { getCurrentMultiplierInfo, estimatePayout, formatMultiplier } from '@/lib/payout-algorithm';
+import { ENSName } from '@/components/ens/ens-identity';
 
 interface PredictionPanelProps {
   reel: Reel | null;
@@ -227,7 +228,13 @@ export function PredictionPanel({ reel, challengeId, onClose }: PredictionPanelP
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-white truncate">{reel.title}</p>
-                    <p className="text-sm text-reel-muted">@{reel.creatorName}</p>
+                    <p className="text-sm text-reel-muted">
+                      <ENSName
+                        address={reel.creatorAddress}
+                        className="text-reel-muted"
+                        showLoading={false}
+                      />
+                    </p>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex items-center gap-1 text-xs text-reel-muted">
                         <Coins className="w-3.5 h-3.5 text-reel-primary" />

@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Wallet, ChevronDown, LogOut, Copy, ExternalLink, Check } from 'lucide-react';
+import { Wallet, ChevronDown, LogOut, Copy, ExternalLink, Check, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, truncateAddress, formatTokenAmount } from '@/lib/utils';
+import { useENSIdentity, formatENSOrAddress } from '@/lib/ens';
+import { ENSAvatar } from '@/components/ens/ens-identity';
 
 export function ConnectButton() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,7 +17,9 @@ export function ConnectButton() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  // Removed useBalance — it polls the RPC and triggers rate limits on free endpoints
+
+  // ENS identity resolution
+  const { name: ensName, avatar: ensAvatar, isLoading: ensLoading } = useENSIdentity(address);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -96,15 +100,18 @@ export function ConnectButton() {
     );
   }
 
+  const displayName = formatENSOrAddress(ensName, address || '', 4);
+
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 h-9 pl-3 pr-2 rounded-lg glass hover:bg-white/10 transition-colors"
+        className="flex items-center gap-2 h-9 pl-1.5 pr-2 rounded-lg glass hover:bg-white/10 transition-colors"
       >
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent" />
+        {/* ENS avatar or colored fallback */}
+        <ENSAvatar address={address} size="xs" className="border-[1px]" />
         <span className="text-sm font-medium text-white hidden sm:block">
-          {truncateAddress(address || '')}
+          {ensLoading ? '...' : displayName}
         </span>
         <ChevronDown className={cn(
           'w-4 h-4 text-reel-muted transition-transform',
@@ -131,23 +138,42 @@ export function ConnectButton() {
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
               className="absolute right-0 mt-2 w-72 glass-strong rounded-xl overflow-hidden z-50"
             >
-              {/* Header */}
+              {/* Header with ENS */}
               <div className="p-4 border-b border-reel-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-reel-primary to-reel-accent flex items-center justify-center">
-                    <span className="text-lg font-bold text-white">
-                      {address?.slice(2, 4).toUpperCase()}
-                    </span>
-                  </div>
+                  <ENSAvatar address={address} size="lg" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white truncate">
-                      {truncateAddress(address || '', 6)}
-                    </p>
-                    <p className="text-sm text-reel-muted">
-                      Sepolia
-                    </p>
+                    {ensName ? (
+                      <>
+                        <p className="font-bold text-white truncate text-base">
+                          {ensName}
+                        </p>
+                        <p className="text-sm text-reel-muted font-mono">
+                          {truncateAddress(address || '', 6)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-white truncate font-mono">
+                          {truncateAddress(address || '', 6)}
+                        </p>
+                        <p className="text-sm text-reel-muted">
+                          Sepolia
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {/* ENS badge */}
+                {ensName && (
+                  <div className="mt-2 px-2 py-1 bg-reel-primary/20 rounded-lg inline-flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-reel-primary" />
+                    <span className="text-xs text-reel-primary font-medium">
+                      ENS Verified
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
@@ -165,6 +191,18 @@ export function ConnectButton() {
                     {copied ? 'Copied!' : 'Copy Address'}
                   </span>
                 </button>
+
+                {ensName && (
+                  <a
+                    href={`https://app.ens.domains/${ensName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-reel-card transition-colors"
+                  >
+                    <User className="w-4 h-4 text-reel-muted" />
+                    <span className="text-sm text-white">View ENS Profile</span>
+                  </a>
+                )}
 
                 <a
                   href={`https://etherscan.io/address/${address}`}
