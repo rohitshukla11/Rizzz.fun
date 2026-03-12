@@ -6,20 +6,20 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-reel-bg disabled:pointer-events-none disabled:opacity-50 btn-haptic',
+  'inline-flex items-center justify-center gap-2 font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5FF00] focus-visible:ring-offset-2 focus-visible:ring-offset-reel-bg disabled:pointer-events-none disabled:opacity-50 btn-haptic',
   {
     variants: {
       variant: {
         default:
-          'bg-reel-primary text-white hover:brightness-110 focus-visible:ring-reel-primary glow-primary',
+          'bg-[#F5FF00] text-black hover:bg-[#F5FF00]/90 focus-visible:ring-[#F5FF00]',
         secondary:
-          'bg-reel-secondary text-reel-bg hover:brightness-110 focus-visible:ring-reel-secondary glow-secondary',
+          'bg-[#FF4D4D] text-white hover:bg-[#FF4D4D]/90 focus-visible:ring-[#FF4D4D]',
         accent:
-          'bg-reel-accent text-white hover:brightness-110 focus-visible:ring-reel-accent',
+          'bg-[#00E5FF] text-black hover:bg-[#00E5FF]/90 focus-visible:ring-[#00E5FF]',
         success:
-          'bg-reel-success text-reel-bg hover:brightness-110 focus-visible:ring-reel-success glow-success',
+          'bg-[#00ff88] text-black hover:bg-[#00ff88]/90 focus-visible:ring-[#00ff88]',
         outline:
-          'border-2 border-reel-border bg-transparent hover:bg-reel-surface hover:border-reel-primary text-reel-text',
+          'border-2 border-[#F5FF00] bg-transparent hover:bg-[#F5FF00] hover:text-black text-[#F5FF00]',
         ghost:
           'bg-transparent hover:bg-reel-surface text-reel-text',
         glass:

@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Flame, Clock, TrendingUp, Sparkles, Zap, ArrowRight,
-  Play, Trophy, Users, Coins, Star, Wallet, Shield, Timer,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { ConnectButton } from '@/components/wallet/connect-button';
 import { ChallengeCard } from '@/components/challenge/challenge-card';
+import { TabGroup } from '@/components/ui/tab-group';
+import { StatsBar } from '@/components/ui/stats-bar';
+import { FloatingReelsBackground } from '@/components/ui/floating-reels-background';
 import { useAccount } from 'wagmi';
 import type { Challenge } from '@/store/app-store';
 
@@ -71,19 +71,18 @@ const mockChallenges: Challenge[] = [
   },
 ];
 
-const categories = [
-  { id: 'trending', label: 'Trending', icon: Flame },
-  { id: 'live', label: 'Live Now', icon: Zap },
-  { id: 'upcoming', label: 'Upcoming', icon: Clock },
-  { id: 'ended', label: 'Ended', icon: TrendingUp },
+const tabs = [
+  { id: 'live', label: '🔴 LIVE' },
+  { id: 'upcoming', label: 'UPCOMING' },
+  { id: 'ended', label: 'ENDED' },
 ];
 
 export default function HomePage() {
-  const [activeCategory, setActiveCategory] = useState('trending');
+  const [activeTab, setActiveTab] = useState('live');
   const { isConnected } = useAccount();
 
   const filteredChallenges = mockChallenges.filter((c) => {
-    switch (activeCategory) {
+    switch (activeTab) {
       case 'live':
         return c.status === 'active' || c.status === 'voting';
       case 'upcoming':
@@ -100,115 +99,90 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-30 glass-strong safe-top">
         <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2.5">
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <Sparkles className="w-6 h-6 text-reel-primary" />
-            </motion.div>
-            <h1 className="font-display text-xl font-bold text-gradient">
-              Rizzz.fun
-            </h1>
-          </div>
+          <h1 className="font-display text-[28px] text-white">
+            RIZZZ<span className="text-[#F5FF00]">.</span>
+          </h1>
           <ConnectButton />
         </div>
-        <div className="neon-line" />
+        <div className="flex items-center justify-center pb-2">
+          <span className="font-mono text-[10px] text-reel-muted uppercase">
+            GASLESS · ON-CHAIN
+          </span>
+        </div>
       </header>
 
-      {/* Compact hero banner */}
-      <section className="px-4 pt-4 pb-2">
+      {/* Hero Section */}
+      <section className="relative min-h-[60vh] flex flex-col items-center justify-center px-4 py-12 overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-radial from-[#1A1400] via-[#080808] to-[#080808] z-0" />
+        
+        {/* Animated floating reels background */}
+        <FloatingReelsBackground />
+        
+        {/* Diagonal stripe decoration */}
+        <div className="absolute inset-0 opacity-15 z-[3] pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-[#F5FF00] transform rotate-[30deg] origin-left" />
+        </div>
+
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl bg-reel-card border border-reel-border/40"
+          transition={{ duration: 0.6 }}
+          className="relative z-[4] text-center max-w-4xl"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-reel-primary/8 via-reel-accent/5 to-reel-secondary/8" />
-          <div className="absolute top-0 right-0 w-40 h-40 bg-reel-primary/10 rounded-full blur-[60px]" />
-
-          <div className="relative px-5 py-4 flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-2 py-0.5 rounded-full bg-reel-primary/15 border border-reel-primary/20 text-reel-primary text-[10px] font-bold uppercase tracking-wider">
-                  Prediction Market
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-reel-warning/15 border border-reel-warning/20 text-reel-warning text-[10px] font-bold uppercase tracking-wider flex items-center gap-0.5">
-                  <Zap className="w-2.5 h-2.5" /> Gasless
-                </span>
-              </div>
-              <h2 className="font-display text-lg font-bold text-white leading-snug">
-                Predict viral reels. <span className="text-gradient">Win big.</span>
-              </h2>
-              <p className="mt-1 text-reel-muted text-[11px] leading-relaxed">
-                Stake on short videos · Early predictions earn up to 5× · Powered by Yellow Network
-              </p>
-            </div>
-
-            {/* Compact stats */}
-            <div className="flex flex-col gap-1.5 flex-shrink-0">
-              {[
-                { value: '$1.2M+', icon: Coins, color: 'text-reel-primary' },
-                { value: '12.4K', icon: Users, color: 'text-reel-secondary' },
-                { value: '847', icon: Play, color: 'text-reel-accent' },
-              ].map((stat, i) => (
-                <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5">
-                  <stat.icon className={`w-3 h-3 ${stat.color}`} />
-                  <span className="text-xs font-bold text-white">{stat.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <h1 className="font-display text-white uppercase leading-[0.95] mb-4" style={{ fontSize: 'clamp(48px, 10vw, 120px)' }}>
+            PREDICT VIRAL REELS.
+            <br />
+            <span className="text-[#F5FF00]">WIN BIG.</span>
+          </h1>
+          <p className="font-sans text-reel-muted text-sm mb-8 max-w-2xl mx-auto">
+            Stake on short videos · Early predictions earn up to 5× · Powered by Yellow Network
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              // Scroll to challenges section
+              const challengesSection = document.getElementById('challenges-section');
+              if (challengesSection) {
+                challengesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              } else {
+                // Fallback: navigate to explore page
+                window.location.href = '/explore';
+              }
+            }}
+            className="px-8 py-4 rounded-full bg-[#F5FF00] text-black font-bold text-base hover:bg-[#F5FF00]/90 transition-colors inline-flex items-center gap-2"
+          >
+            START PREDICTING <ArrowRight className="w-5 h-5" />
+          </motion.button>
         </motion.div>
       </section>
 
-      {/* Category tabs */}
-      <section className="px-4 pt-2 pb-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = activeCategory === cat.id;
-            return (
-              <motion.button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap transition-all text-xs font-medium ${
-                  isActive
-                    ? 'bg-reel-primary text-white shadow-lg shadow-reel-primary/20'
-                    : 'bg-reel-card/60 text-reel-muted hover:text-white hover:bg-reel-card border border-reel-border/30'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {cat.label}
-              </motion.button>
-            );
-          })}
-        </div>
+      {/* Live Stats Bar */}
+      <StatsBar
+        stats={[
+          { value: '$1.2M+', label: 'VOLUME' },
+          { value: '12.4K', label: 'PLAYERS' },
+          { value: '847', label: 'ACTIVE NOW' },
+        ]}
+      />
+
+      {/* Challenge Tabs */}
+      <section className="px-4 py-6">
+        <TabGroup tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       </section>
 
-      {/* Section header */}
-      <section className="px-4 pb-1.5">
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-sm font-semibold text-white flex items-center gap-1.5">
-            {activeCategory === 'trending' ? (
-              <><Flame className="w-4 h-4 text-reel-warning" /> Hot Challenges</>
-            ) : activeCategory === 'live' ? (
-              <><Zap className="w-4 h-4 text-reel-success" /> Live Now</>
-            ) : activeCategory === 'upcoming' ? (
-              <><Clock className="w-4 h-4 text-reel-secondary" /> Coming Soon</>
-            ) : (
-              <><Trophy className="w-4 h-4 text-reel-accent" /> Past Winners</>
-            )}
-          </h3>
-          <span className="text-[10px] text-reel-muted bg-reel-card/60 px-2 py-0.5 rounded-full">
-            {filteredChallenges.length} found
-          </span>
+      {/* Hot Challenges Section */}
+      <section id="challenges-section" className="px-4 pb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-white text-[32px] uppercase">HOT CHALLENGES</h2>
+          <div className="px-3 py-1 rounded-full bg-[#F5FF00] text-black font-display text-sm font-bold">
+            {filteredChallenges.length}
+          </div>
         </div>
-      </section>
 
-      {/* Challenges list — compact vertical layout */}
-      <section className="px-4">
-        <div className="flex flex-col gap-2">
+        {/* Challenge Cards Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {filteredChallenges.length > 0 ? (
               filteredChallenges.map((challenge, index) => (
@@ -218,31 +192,13 @@ export default function HomePage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-12"
+                className="col-span-full text-center py-12"
               >
-                <Star className="w-10 h-10 text-reel-muted/30 mx-auto mb-2" />
                 <p className="text-reel-muted font-medium text-sm">No challenges in this category</p>
-                <p className="text-reel-muted/60 text-xs mt-0.5">Check back soon!</p>
+                <p className="text-reel-muted/60 text-xs mt-1">Check back soon!</p>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </section>
-
-      {/* Compact footer */}
-      <section className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-center gap-3 px-3 py-2.5 rounded-xl bg-reel-card/30 border border-reel-border/15">
-          <div className="flex items-center gap-1.5">
-            <Zap className="w-3 h-3 text-reel-warning" />
-            <span className="text-[10px] text-reel-muted">Yellow Network</span>
-          </div>
-          <div className="w-px h-3 bg-reel-border/30" />
-          <div className="flex items-center gap-1.5">
-            <Shield className="w-3 h-3 text-reel-success" />
-            <span className="text-[10px] text-reel-muted">ERC-7824</span>
-          </div>
-          <div className="w-px h-3 bg-reel-border/30" />
-          <span className="text-[10px] text-reel-muted/60">Gasless · On-chain settlement</span>
         </div>
       </section>
 

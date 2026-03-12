@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Users, Coins, TrendingUp, ChevronRight, Play, Flame, Timer, Zap } from 'lucide-react';
+import { Clock, Users, Coins, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { cn, formatTokenAmount, formatTimeRemaining } from '@/lib/utils';
+import { LiveBadge } from '@/components/ui/live-badge';
+import { MultiplierBadge } from '@/components/ui/multiplier-badge';
 import type { Challenge } from '@/store/app-store';
 
 interface ChallengeCardProps {
@@ -13,14 +15,16 @@ interface ChallengeCardProps {
 }
 
 const statusConfig = {
-  upcoming: { color: 'bg-reel-secondary text-white', label: 'Soon', icon: Clock },
-  active: { color: 'bg-reel-success text-black', label: 'Live', icon: Zap },
-  voting: { color: 'bg-reel-warning text-black', label: 'Voting', icon: Flame },
-  settled: { color: 'bg-reel-muted/60 text-white', label: 'Ended', icon: TrendingUp },
+  upcoming: { color: 'bg-[#00E5FF]', label: 'SOON' },
+  active: { color: 'bg-[#FF4D4D]', label: 'LIVE' },
+  voting: { color: 'bg-[#FF4D4D]', label: 'LIVE' },
+  settled: { color: 'bg-reel-muted', label: 'ENDED' },
 };
 
 export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
+  const isLive = challenge.status === 'active' || challenge.status === 'voting';
+  const isUpcoming = challenge.status === 'upcoming';
 
   useEffect(() => {
     const updateTime = () => setTimeRemaining(formatTimeRemaining(challenge.endTime));
@@ -30,101 +34,102 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
   }, [challenge.endTime]);
 
   const status = statusConfig[challenge.status];
-  const StatusIcon = status.icon;
-  const isDemo = challenge.id.includes('demo');
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.3 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, type: 'spring', stiffness: 300, damping: 20 }}
     >
       <Link
         href={`/challenge/${challenge.id}`}
-        className={cn(
-          'flex gap-3 p-2.5 rounded-xl group transition-all duration-200 card-hover',
-          isDemo
-            ? 'bg-reel-card ring-1 ring-reel-primary/30 hover:ring-reel-primary/60'
-            : 'bg-reel-card/60 ring-1 ring-reel-border/20 hover:ring-reel-primary/40 hover:bg-reel-card',
-        )}
+        className="block group"
         prefetch={false}
       >
-        {/* Thumbnail — compact square */}
-        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden">
-          {challenge.coverImage ? (
-            <img
-              src={challenge.coverImage}
-              alt={challenge.title}
-              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{
-                background: `linear-gradient(135deg, 
-                  hsl(${(index * 80 + 200) % 360}, 75%, 45%), 
-                  hsl(${(index * 80 + 260) % 360}, 75%, 30%))`,
-              }}
-            />
-          )}
-          {/* Overlay */}
-          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+        <div className="relative rounded-2xl overflow-hidden bg-reel-surface border border-reel-border card-hover">
+          {/* Thumbnail */}
+          <div className="relative aspect-[16/9] overflow-hidden">
+            {challenge.coverImage ? (
+              <img
+                src={challenge.coverImage}
+                alt={challenge.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <div
+                className="w-full h-full"
+                style={{
+                  background: `linear-gradient(135deg, 
+                    hsl(${(index * 60) % 360}, 70%, 25%), 
+                    hsl(${(index * 60 + 120) % 360}, 70%, 15%))`,
+                }}
+              />
+            )}
+            
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
-          {/* Reel count badge */}
-          {challenge.reelCount > 0 && (
-            <div className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm">
-              <Play className="w-2.5 h-2.5 text-white" />
-              <span className="text-[9px] font-bold text-white">{challenge.reelCount}</span>
+            {/* Top-left badge */}
+            <div className="absolute top-3 left-3">
+              {isLive ? (
+                <LiveBadge size="sm" />
+              ) : isUpcoming ? (
+                <div className="px-2 py-0.5 rounded-full bg-[#00E5FF] text-white font-mono text-[10px] font-bold uppercase">
+                  SOON
+                </div>
+              ) : null}
             </div>
-          )}
-        </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-          {/* Top: title + status */}
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <h3 className="font-display text-sm font-semibold text-white truncate group-hover:text-reel-primary transition-colors">
-                {challenge.title}
-              </h3>
+            {/* Top-right participant count */}
+            <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm">
+              <Eye className="w-3 h-3 text-white" />
+              <span className="text-[10px] font-mono text-white">{challenge.participantCount}</span>
             </div>
-            <p className="text-[11px] text-reel-muted truncate leading-tight">
+
+            {/* Bottom-left multiplier badge */}
+            <div className="absolute bottom-3 left-3">
+              <MultiplierBadge multiplier="5" />
+            </div>
+          </div>
+
+          {/* Card body */}
+          <div className="p-4">
+            <h3 className="font-sans text-[15px] font-semibold text-white line-clamp-2 mb-2">
+              {challenge.title}
+            </h3>
+            <p className="font-sans text-[13px] text-reel-muted line-clamp-2 mb-3">
               {challenge.description}
             </p>
-          </div>
 
-          {/* Bottom: stats row */}
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={cn(
-              'flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide',
-              status.color,
-            )}>
-              <StatusIcon className="w-2.5 h-2.5" />
-              {status.label}
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-reel-primary font-medium">
-              <Coins className="w-3 h-3" />
-              {formatTokenAmount(challenge.totalPool, 6)}
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-reel-muted font-medium">
-              <Users className="w-3 h-3" />
-              {challenge.participantCount}
-            </span>
-            {isDemo && (
-              <span className="flex items-center gap-0.5 text-[9px] text-reel-warning font-bold ml-auto">
-                <Flame className="w-2.5 h-2.5" /> 5×
-              </span>
-            )}
-            <span className="flex items-center gap-0.5 text-[10px] text-reel-muted/70 font-mono ml-auto">
-              <Timer className="w-2.5 h-2.5" />
-              {timeRemaining || '…'}
-            </span>
-          </div>
-        </div>
+            {/* Footer row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-[#F5FF00]" />
+                <span className="font-mono text-[#F5FF00] text-xs font-semibold">
+                  {formatTokenAmount(challenge.totalPool, 6)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-reel-muted" />
+                <span className="font-mono text-reel-muted text-xs">
+                  {timeRemaining || '…'}
+                </span>
+              </div>
+            </div>
 
-        {/* Chevron */}
-        <div className="flex items-center flex-shrink-0">
-          <ChevronRight className="w-4 h-4 text-reel-muted/40 group-hover:text-reel-primary transition-colors" />
+            {/* Predict button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.href = `/challenge/${challenge.id}`;
+              }}
+              className="w-full mt-3 py-2.5 rounded-lg border border-[#F5FF00] text-[#F5FF00] bg-transparent hover:bg-[#F5FF00] hover:text-black font-semibold text-sm transition-all duration-200"
+            >
+              PREDICT
+            </motion.button>
+          </div>
         </div>
       </Link>
     </motion.div>
@@ -134,17 +139,14 @@ export function ChallengeCard({ challenge, index = 0 }: ChallengeCardProps) {
 // Skeleton loader
 export function ChallengeCardSkeleton() {
   return (
-    <div className="flex gap-3 p-2.5 rounded-xl bg-reel-card/40 ring-1 ring-reel-border/20">
-      <div className="w-20 h-20 rounded-lg skeleton flex-shrink-0" />
-      <div className="flex-1 flex flex-col justify-between py-0.5">
-        <div className="space-y-1.5">
-          <div className="h-4 w-3/4 skeleton rounded" />
-          <div className="h-3 w-full skeleton rounded" />
-        </div>
-        <div className="flex gap-2 mt-1.5">
-          <div className="h-5 w-12 skeleton rounded-full" />
-          <div className="h-5 w-16 skeleton rounded-full" />
-          <div className="h-5 w-10 skeleton rounded-full" />
+    <div className="rounded-2xl overflow-hidden bg-reel-surface border border-reel-border">
+      <div className="aspect-[16/9] skeleton" />
+      <div className="p-4 space-y-3">
+        <div className="h-4 w-3/4 skeleton rounded" />
+        <div className="h-3 w-full skeleton rounded" />
+        <div className="flex justify-between">
+          <div className="h-4 w-20 skeleton rounded" />
+          <div className="h-4 w-16 skeleton rounded" />
         </div>
       </div>
     </div>

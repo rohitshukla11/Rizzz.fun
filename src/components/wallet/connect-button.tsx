@@ -53,15 +53,16 @@ export function ConnectButton() {
   if (!isConnected) {
     return (
       <div className="relative">
-        <Button
+        <motion.button
           onClick={() => setIsOpen(!isOpen)}
-          variant="glass"
-          size="sm"
-          isLoading={isPending}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          disabled={isPending}
+          className="px-4 py-2 rounded-full border border-[#F5FF00] text-[#F5FF00] bg-transparent hover:bg-[#F5FF00] hover:text-black font-semibold text-sm transition-all duration-200 disabled:opacity-50"
         >
-          <Wallet className="w-4 h-4" />
-          <span className="hidden sm:inline">Connect</span>
-        </Button>
+          <span className="hidden sm:inline">Connect Wallet</span>
+          <span className="sm:hidden">Connect</span>
+        </motion.button>
 
         <AnimatePresence>
           {isOpen && (

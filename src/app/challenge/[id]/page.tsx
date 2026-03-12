@@ -691,111 +691,135 @@ export default function ChallengePage() {
                   <motion.div
                     animate={{ scale: [1, 1.05, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="px-2.5 py-1 rounded-full bg-orange-500/15 border border-orange-500/25 flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-full bg-[#FF4D4D]/15 border border-[#FF4D4D]/25 flex items-center gap-1"
                   >
-                    <Flame className="w-3 h-3 text-orange-400" />
-                    <span className="text-xs font-mono font-bold text-orange-400">{currentMultiplier}</span>
+                    <Flame className="w-3 h-3 text-[#FF4D4D]" />
+                    <span className="text-xs font-mono font-bold text-[#FF4D4D]">{currentMultiplier}</span>
                   </motion.div>
                 )}
                 <ConnectButton />
               </div>
             </div>
-            <div className="neon-line" />
           </header>
 
-          {/* Hero banner with countdown */}
-          <section className="px-4 pt-4 pb-2">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="relative overflow-hidden rounded-2xl border border-reel-border/40"
-            >
-              {/* Background cover */}
-              {challenge.coverImage ? (
-                <div className="absolute inset-0">
-                  <img src={challenge.coverImage} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/50" />
-                </div>
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-reel-primary/10 to-reel-accent/10" />
-              )}
-
-              <div className="relative p-4 flex items-center gap-4">
-                {/* Countdown ring (demo) or timer */}
-                {isDemo ? (
-                  <CountdownRing endTime={mockChallenge.endTime} startTime={mockChallenge.startTime} />
-                ) : (
-                  <div className="flex-shrink-0 px-3 py-2 rounded-xl glass">
-                    <Clock className="w-4 h-4 text-reel-muted mx-auto mb-1" />
-                    <span className="text-xs font-mono text-white">{formatTimeRemaining(challenge.endTime)}</span>
-                  </div>
-                )}
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/70 text-xs line-clamp-2 mb-3">{challenge.description}</p>
-
-                  {/* Stat chips */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-reel-primary/10 text-reel-primary text-[11px] font-medium">
-                      <Coins className="w-3 h-3" /> {formatTokenAmount(challenge.totalPool, 6)} USDC
-                    </span>
-                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-reel-secondary/10 text-reel-secondary text-[11px] font-medium">
-                      <Users className="w-3 h-3" /> {challenge.participantCount}
-                    </span>
-                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-reel-accent/10 text-reel-accent text-[11px] font-medium">
-                      <Play className="w-3 h-3" /> {challenge.reelCount} reels
-                    </span>
-                  </div>
-                </div>
+          {/* Full-bleed thumbnail */}
+          <section className="relative h-[40vh] overflow-hidden">
+            {challenge.coverImage ? (
+              <>
+                <img src={challenge.coverImage} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#080808]" />
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-[#1A1400] to-[#080808]" />
+            )}
+            
+            {/* LIVE badge */}
+            <div className="absolute top-4 left-4">
+              <div className="px-3 py-1.5 rounded-full bg-[#FF4D4D] text-white font-mono text-xs font-bold uppercase flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-white live-pulse" />
+                LIVE
               </div>
-            </motion.div>
+            </div>
+
+            {/* Title overlapping */}
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <h1 className="font-display text-white text-[48px] uppercase leading-tight">
+                {challenge.title.replace('⚡ ', '')}
+              </h1>
+            </div>
           </section>
 
-          {/* Early bird + Session bar */}
-          <section className="px-4 py-2 flex gap-2">
-            {/* Early bird badge */}
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex-1 p-3 rounded-xl bg-orange-500/5 border border-orange-500/15 flex items-center gap-2"
-            >
-              <Flame className="w-5 h-5 text-orange-400 flex-shrink-0" />
-              <div>
-                <p className="text-orange-400 text-xs font-semibold">Early Bird Bonus</p>
-                <p className="text-[10px] text-reel-muted">Up to 5× payout multiplier</p>
+          {/* Stats row */}
+          <section className="px-4 py-4 bg-reel-elevated border-b border-reel-border">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="font-mono text-[#F5FF00] text-lg font-bold">{formatTokenAmount(challenge.totalPool, 0)}</p>
+                <p className="font-sans text-reel-muted text-[10px] mt-1">Pool Size</p>
               </div>
-            </motion.div>
+              <div className="text-center">
+                <p className="font-mono text-[#00E5FF] text-lg font-bold">{challenge.participantCount}</p>
+                <p className="font-sans text-reel-muted text-[10px] mt-1">Players</p>
+              </div>
+              <div className="text-center">
+                <p className="font-mono text-[#00E5FF] text-lg font-bold">{formatTimeRemaining(challenge.endTime)}</p>
+                <p className="font-sans text-reel-muted text-[10px] mt-1">Time Left</p>
+              </div>
+              <div className="text-center">
+                <p className="font-mono text-[#F5FF00] text-lg font-bold">5×</p>
+                <p className="font-sans text-reel-muted text-[10px] mt-1">Max Multiplier</p>
+              </div>
+            </div>
+          </section>
 
-            {/* Session status */}
-            {isConnected && (
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex-1"
+          {/* Main CTA Section */}
+          <section className="px-4 py-6">
+            <div className="bg-reel-elevated rounded-2xl p-6 border border-reel-border">
+              <label className="font-sans text-reel-muted text-sm uppercase mb-4 block">
+                YOUR PREDICTION
+              </label>
+              
+              {/* Number input with controls */}
+              <div className="flex items-center gap-3 mb-4">
+                <button className="w-12 h-12 rounded-lg border border-reel-border text-white hover:bg-reel-surface transition-colors font-bold text-xl">
+                  −
+                </button>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  className="flex-1 h-12 px-4 rounded-lg bg-reel-surface border border-reel-border focus:border-[#F5FF00] focus:ring-2 focus:ring-[#F5FF00]/20 outline-none text-white font-mono text-lg text-center"
+                />
+                <button className="w-12 h-12 rounded-lg border border-reel-border text-white hover:bg-reel-surface transition-colors font-bold text-xl">
+                  +
+                </button>
+              </div>
+
+              {/* STAKE NOW button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (!isConnected) return;
+                  if (!session) {
+                    setDepositModalOpen(true);
+                    return;
+                  }
+                  // Open prediction panel for first reel
+                  if (displayReels.length > 0) {
+                    handlePredictClick(displayReels[0]);
+                  }
+                }}
+                className="w-full h-14 rounded-lg bg-[#F5FF00] text-black font-bold text-lg hover:bg-[#F5FF00]/90 transition-colors mb-2"
               >
-                {session ? (
-                  <div className="h-full p-3 rounded-xl bg-reel-success/5 border border-reel-success/15 flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-reel-success live-dot" />
-                    <div>
-                      <p className="text-reel-success text-xs font-semibold">Session Active</p>
-                      <p className="text-[10px] font-mono text-white">{formatTokenAmount(session.availableBalance, 6)} USDC</p>
-                    </div>
+                STAKE NOW
+              </motion.button>
+
+              <p className="text-center font-sans text-reel-muted text-xs">
+                Gasless transaction · Powered by Yellow Network
+              </p>
+            </div>
+          </section>
+
+          {/* Recent Predictions */}
+          <section className="px-4 pb-6">
+            <h3 className="font-display text-white text-xl uppercase mb-4">RECENT PREDICTIONS</h3>
+            <div className="space-y-2">
+              {displayReels.slice(0, 3).map((reel, index) => (
+                <motion.div
+                  key={reel.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-reel-surface border border-reel-border"
+                >
+                  <ENSAvatar address={reel.creatorAddress} size="xs" />
+                  <div className="flex-1 min-w-0">
+                    <ENSName address={reel.creatorAddress} className="text-white text-sm font-semibold" chars={4} />
+                    <p className="text-reel-muted text-xs">{formatTokenAmount(reel.predictionPool, 6)} USDC</p>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setDepositModalOpen(true)}
-                    className="h-full w-full p-3 rounded-xl bg-reel-primary/10 border border-reel-primary/20 flex items-center gap-2 hover:bg-reel-primary/15 transition-colors"
-                  >
-                    <Zap className="w-5 h-5 text-reel-primary flex-shrink-0" />
-                    <div className="text-left">
-                      <p className="text-reel-primary text-xs font-semibold">Deposit</p>
-                      <p className="text-[10px] text-reel-muted">Start predicting</p>
-                    </div>
-                  </button>
-                )}
-              </motion.div>
-            )}
+                  <span className="font-mono text-reel-muted text-xs">2m ago</span>
+                </motion.div>
+              ))}
+            </div>
           </section>
 
           {/* Reels grid */}
