@@ -1,10 +1,10 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, type HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { forwardRef } from 'react';
 
-interface PillButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface PillButtonProps extends Omit<HTMLMotionProps<'button'>, 'variant'> {
   variant?: 'outline' | 'filled';
   children: React.ReactNode;
 }
